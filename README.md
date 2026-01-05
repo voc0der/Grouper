@@ -10,6 +10,11 @@ Copy to `World of Warcraft/_classic_/Interface/AddOns/`
 
 Start recruiting:
 ```
+/wbgh azuregos
+```
+
+With hard reserve:
+```
 /wbgh azuregos Mature Blue Dragon Sinew
 ```
 
