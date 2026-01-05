@@ -9,13 +9,44 @@ local defaults = {
     tradeInterval = 300,
     lfgInterval = 300,
     bosses = {
-        ["azuregos"] = { tanks = 1, healers = 6, hr = nil },
-        ["kazzak"] = { tanks = 1, healers = 6, hr = nil },
-        ["emeriss"] = { tanks = 1, healers = 6, hr = nil },
-        ["lethon"] = { tanks = 1, healers = 6, hr = nil },
-        ["taerar"] = { tanks = 1, healers = 6, hr = nil },
-        ["ysondre"] = { tanks = 1, healers = 6, hr = nil },
+        -- World Bosses
+        ["Azuregos"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
+        ["Lord Kazzak"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
+        ["Emeriss"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
+        ["Lethon"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
+        ["Taerar"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
+        ["Ysondre"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
+
+        -- 40-Man Raids
+        ["Molten Core"] = { tanks = 3, healers = 8, hr = nil, size = 40, category = "40-Man Raid" },
+        ["Blackwing Lair"] = { tanks = 3, healers = 8, hr = nil, size = 40, category = "40-Man Raid" },
+        ["Ahn'Qiraj (AQ40)"] = { tanks = 3, healers = 8, hr = nil, size = 40, category = "40-Man Raid" },
+        ["Naxxramas"] = { tanks = 4, healers = 10, hr = nil, size = 40, category = "40-Man Raid" },
+
+        -- 20-Man Raids
+        ["Zul'Gurub"] = { tanks = 2, healers = 5, hr = nil, size = 20, category = "20-Man Raid" },
+        ["Ruins of Ahn'Qiraj (AQ20)"] = { tanks = 2, healers = 4, hr = nil, size = 20, category = "20-Man Raid" },
+
+        -- 10-Man Raids
+        ["Onyxia's Lair"] = { tanks = 2, healers = 3, hr = nil, size = 10, category = "10-Man Raid" },
+
+        -- 5-Man Dungeons
+        ["Stratholme"] = { tanks = 1, healers = 1, hr = nil, size = 5, category = "5-Man Dungeon" },
+        ["Scholomance"] = { tanks = 1, healers = 1, hr = nil, size = 5, category = "5-Man Dungeon" },
+        ["Upper Blackrock Spire"] = { tanks = 1, healers = 1, hr = nil, size = 5, category = "5-Man Dungeon" },
+        ["Lower Blackrock Spire"] = { tanks = 1, healers = 1, hr = nil, size = 5, category = "5-Man Dungeon" },
+        ["Dire Maul"] = { tanks = 1, healers = 1, hr = nil, size = 5, category = "5-Man Dungeon" },
+        ["Blackrock Depths"] = { tanks = 1, healers = 1, hr = nil, size = 5, category = "5-Man Dungeon" },
     }
+}
+
+-- Boss categories for UI
+local bossCategories = {
+    "World Boss",
+    "40-Man Raid",
+    "20-Man Raid",
+    "10-Man Raid",
+    "5-Man Dungeon"
 }
 
 -- Active session data
@@ -42,6 +73,7 @@ local majorCities = {
 -- UI Frame references
 local tradeButton = nil
 local lfgButton = nil
+local configFrame = nil
 
 -- Initialize saved variables
 function WBGH:InitDB()
@@ -71,7 +103,9 @@ function WBGH:InitDB()
             WorldBossGroupHelperDB.bosses[boss] = {
                 tanks = config.tanks,
                 healers = config.healers,
-                hr = config.hr
+                hr = config.hr,
+                size = config.size,
+                category = config.category
             }
         end
     end
@@ -79,18 +113,28 @@ end
 
 -- Get boss config (merge saved with defaults)
 function WBGH:GetBossConfig(bossName)
-    local boss = string.lower(bossName)
-    if WorldBossGroupHelperDB.bosses[boss] then
-        return WorldBossGroupHelperDB.bosses[boss]
-    else
-        -- Create new boss with defaults
-        WorldBossGroupHelperDB.bosses[boss] = {
-            tanks = defaults.bosses.azuregos.tanks,
-            healers = defaults.bosses.azuregos.healers,
-            hr = nil
-        }
-        return WorldBossGroupHelperDB.bosses[boss]
+    -- Try exact match first
+    if WorldBossGroupHelperDB.bosses[bossName] then
+        return WorldBossGroupHelperDB.bosses[bossName]
     end
+
+    -- Try lowercase match (backwards compatibility)
+    local bossLower = string.lower(bossName)
+    for name, config in pairs(WorldBossGroupHelperDB.bosses) do
+        if string.lower(name) == bossLower then
+            return config
+        end
+    end
+
+    -- Create new boss with defaults
+    WorldBossGroupHelperDB.bosses[bossName] = {
+        tanks = 1,
+        healers = 6,
+        hr = nil,
+        size = 25,
+        category = "Custom"
+    }
+    return WorldBossGroupHelperDB.bosses[bossName]
 end
 
 -- Check if in major city
@@ -171,7 +215,7 @@ end
 function WBGH:GenerateMessage()
     local numRaid, tanks, healers, classCounts = self:ScanRaid()
     local config = self:GetBossConfig(activeSession.boss)
-    local raidSize = WorldBossGroupHelperDB.raidSize
+    local raidSize = config.size or WorldBossGroupHelperDB.raidSize or 25
 
     -- Calculate needs
     local tanksNeeded = math.max(0, config.tanks - tanks)
@@ -330,8 +374,10 @@ function WBGH:UpdateButtons()
     -- Check if raid is full
     if IsInRaid() or IsInGroup() then
         local numMembers = GetNumGroupMembers()
-        if numMembers >= WorldBossGroupHelperDB.raidSize then
-            print("|cff00ff00[WBGH]|r Raid is full! (" .. numMembers .. "/" .. WorldBossGroupHelperDB.raidSize .. ")")
+        local config = self:GetBossConfig(activeSession.boss)
+        local targetSize = config.size or WorldBossGroupHelperDB.raidSize or 25
+        if numMembers >= targetSize then
+            print("|cff00ff00[WBGH]|r Raid is full! (" .. numMembers .. "/" .. targetSize .. ")")
             print("|cffff9900[WBGH]|r Use /wbgh off to stop recruiting")
         end
     end
@@ -412,6 +458,285 @@ function WBGH:CancelTimer(frame)
     end
 end
 
+-- Create Configuration UI
+function WBGH:CreateConfigUI()
+    if configFrame then
+        configFrame:Show()
+        return
+    end
+
+    -- Main frame
+    configFrame = CreateFrame("Frame", "WBGHConfigFrame", UIParent, "BasicFrameTemplateWithInset")
+    configFrame:SetSize(500, 600)
+    configFrame:SetPoint("CENTER")
+    configFrame:SetMovable(true)
+    configFrame:EnableMouse(true)
+    configFrame:RegisterForDrag("LeftButton")
+    configFrame:SetScript("OnDragStart", configFrame.StartMoving)
+    configFrame:SetScript("OnDragStop", configFrame.StopMovingOrSizing)
+    configFrame:SetFrameStrata("DIALOG")
+    configFrame.title = configFrame:CreateFontString(nil, "OVERLAY")
+    configFrame.title:SetFontObject("GameFontHighlight")
+    configFrame.title:SetPoint("LEFT", configFrame.TitleBg, "LEFT", 5, 0)
+    configFrame.title:SetText("World Boss Group Helper")
+
+    -- Selected boss/dungeon
+    configFrame.selectedBoss = "Azuregos"
+
+    local yOffset = -35
+
+    -- Boss/Dungeon Dropdown
+    local dropdownLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    dropdownLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    dropdownLabel:SetText("Select Boss/Dungeon:")
+
+    -- Create dropdown using UIDropDownMenu
+    local dropdown = CreateFrame("Frame", "WBGHBossDropdown", configFrame, "UIDropDownMenuTemplate")
+    dropdown:SetPoint("TOPLEFT", dropdownLabel, "BOTTOMLEFT", -15, -5)
+    UIDropDownMenu_SetWidth(dropdown, 250)
+
+    -- Populate dropdown
+    local function OnClick(self)
+        UIDropDownMenu_SetSelectedID(dropdown, self:GetID())
+        configFrame.selectedBoss = self.value
+        WBGH:UpdateConfigUI()
+    end
+
+    local function initialize(self, level)
+        local info = UIDropDownMenu_CreateInfo()
+
+        -- Group bosses by category
+        for _, category in ipairs(bossCategories) do
+            local foundInCategory = false
+
+            -- Check if category has bosses
+            for bossName, config in pairs(defaults.bosses) do
+                if config.category == category then
+                    foundInCategory = true
+                    break
+                end
+            end
+
+            if foundInCategory then
+                info.text = category
+                info.isTitle = true
+                info.notCheckable = true
+                UIDropDownMenu_AddButton(info)
+
+                -- Add bosses in this category
+                for bossName, config in pairs(defaults.bosses) do
+                    if config.category == category then
+                        info.text = bossName
+                        info.value = bossName
+                        info.isTitle = false
+                        info.notCheckable = false
+                        info.checked = (configFrame.selectedBoss == bossName)
+                        info.func = OnClick
+                        UIDropDownMenu_AddButton(info)
+                    end
+                end
+            end
+        end
+    end
+
+    UIDropDownMenu_Initialize(dropdown, initialize)
+    UIDropDownMenu_SetSelectedValue(dropdown, configFrame.selectedBoss)
+
+    yOffset = yOffset - 60
+
+    -- Raid Size Slider
+    local sizeLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    sizeLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    sizeLabel:SetText("Raid/Group Size:")
+
+    local sizeSlider = CreateFrame("Slider", "WBGHSizeSlider", configFrame, "OptionsSliderTemplate")
+    sizeSlider:SetPoint("TOPLEFT", sizeLabel, "BOTTOMLEFT", 5, -10)
+    sizeSlider:SetMinMaxValues(5, 40)
+    sizeSlider:SetValueStep(1)
+    sizeSlider:SetObeyStepOnDrag(true)
+    sizeSlider:SetWidth(200)
+    sizeSlider.tooltipText = "Set the expected group/raid size for this boss/dungeon"
+    _G[sizeSlider:GetName().."Low"]:SetText("5")
+    _G[sizeSlider:GetName().."High"]:SetText("40")
+    _G[sizeSlider:GetName().."Text"]:SetText("Size: 25")
+    sizeSlider:SetScript("OnValueChanged", function(self, value)
+        _G[self:GetName().."Text"]:SetText("Size: " .. value)
+        local config = WBGH:GetBossConfig(configFrame.selectedBoss)
+        config.size = value
+    end)
+    configFrame.sizeSlider = sizeSlider
+
+    yOffset = yOffset - 70
+
+    -- Tanks Slider
+    local tankLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    tankLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    tankLabel:SetText("Tanks Needed:")
+
+    local tankSlider = CreateFrame("Slider", "WBGHTankSlider", configFrame, "OptionsSliderTemplate")
+    tankSlider:SetPoint("TOPLEFT", tankLabel, "BOTTOMLEFT", 5, -10)
+    tankSlider:SetMinMaxValues(1, 8)
+    tankSlider:SetValueStep(1)
+    tankSlider:SetObeyStepOnDrag(true)
+    tankSlider:SetWidth(200)
+    tankSlider.tooltipText = "Number of tanks needed"
+    _G[tankSlider:GetName().."Low"]:SetText("1")
+    _G[tankSlider:GetName().."High"]:SetText("8")
+    _G[tankSlider:GetName().."Text"]:SetText("Tanks: 1")
+    tankSlider:SetScript("OnValueChanged", function(self, value)
+        _G[self:GetName().."Text"]:SetText("Tanks: " .. value)
+        local config = WBGH:GetBossConfig(configFrame.selectedBoss)
+        config.tanks = value
+    end)
+    configFrame.tankSlider = tankSlider
+
+    yOffset = yOffset - 70
+
+    -- Healers Slider
+    local healerLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    healerLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    healerLabel:SetText("Healers Needed:")
+
+    local healerSlider = CreateFrame("Slider", "WBGHHealerSlider", configFrame, "OptionsSliderTemplate")
+    healerSlider:SetPoint("TOPLEFT", healerLabel, "BOTTOMLEFT", 5, -10)
+    healerSlider:SetMinMaxValues(1, 15)
+    healerSlider:SetValueStep(1)
+    healerSlider:SetObeyStepOnDrag(true)
+    healerSlider:SetWidth(200)
+    healerSlider.tooltipText = "Number of healers needed"
+    _G[healerSlider:GetName().."Low"]:SetText("1")
+    _G[healerSlider:GetName().."High"]:SetText("15")
+    _G[healerSlider:GetName().."Text"]:SetText("Healers: 6")
+    healerSlider:SetScript("OnValueChanged", function(self, value)
+        _G[self:GetName().."Text"]:SetText("Healers: " .. value)
+        local config = WBGH:GetBossConfig(configFrame.selectedBoss)
+        config.healers = value
+    end)
+    configFrame.healerSlider = healerSlider
+
+    yOffset = yOffset - 70
+
+    -- Hard Reserve Input
+    local hrLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    hrLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    hrLabel:SetText("Hard Reserve (HR) Item:")
+
+    local hrInput = CreateFrame("EditBox", "WBGHHRInput", configFrame, "InputBoxTemplate")
+    hrInput:SetPoint("TOPLEFT", hrLabel, "BOTTOMLEFT", 5, -5)
+    hrInput:SetSize(300, 20)
+    hrInput:SetAutoFocus(false)
+    hrInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    hrInput:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    hrInput:SetScript("OnTextChanged", function(self)
+        local config = WBGH:GetBossConfig(configFrame.selectedBoss)
+        local text = self:GetText()
+        config.hr = (text ~= "" and text) or nil
+    end)
+    configFrame.hrInput = hrInput
+
+    yOffset = yOffset - 60
+
+    -- Interval Settings
+    local intervalLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    intervalLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    intervalLabel:SetText("Spam Intervals (seconds)")
+
+    yOffset = yOffset - 30
+
+    -- Trade Interval
+    local tradeLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    tradeLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    tradeLabel:SetText("Trade Chat:")
+
+    local tradeInput = CreateFrame("EditBox", "WBGHTradeIntervalInput", configFrame, "InputBoxTemplate")
+    tradeInput:SetPoint("TOPLEFT", tradeLabel, "BOTTOMLEFT", 5, -5)
+    tradeInput:SetSize(80, 20)
+    tradeInput:SetAutoFocus(false)
+    tradeInput:SetNumeric(true)
+    tradeInput:SetText(tostring(WorldBossGroupHelperDB.tradeInterval or 300))
+    tradeInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    tradeInput:SetScript("OnEnterPressed", function(self)
+        local value = tonumber(self:GetText())
+        if value and value > 0 then
+            WorldBossGroupHelperDB.tradeInterval = value
+        end
+        self:ClearFocus()
+    end)
+
+    yOffset = yOffset - 50
+
+    -- LFG Interval
+    local lfgLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    lfgLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    lfgLabel:SetText("LFG Chat:")
+
+    local lfgInput = CreateFrame("EditBox", "WBGHLFGIntervalInput", configFrame, "InputBoxTemplate")
+    lfgInput:SetPoint("TOPLEFT", lfgLabel, "BOTTOMLEFT", 5, -5)
+    lfgInput:SetSize(80, 20)
+    lfgInput:SetAutoFocus(false)
+    lfgInput:SetNumeric(true)
+    lfgInput:SetText(tostring(WorldBossGroupHelperDB.lfgInterval or 300))
+    lfgInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    lfgInput:SetScript("OnEnterPressed", function(self)
+        local value = tonumber(self:GetText())
+        if value and value > 0 then
+            WorldBossGroupHelperDB.lfgInterval = value
+        end
+        self:ClearFocus()
+    end)
+
+    yOffset = yOffset - 60
+
+    -- Start/Stop Buttons
+    local startButton = CreateFrame("Button", "WBGHStartButton", configFrame, "UIPanelButtonTemplate")
+    startButton:SetSize(140, 30)
+    startButton:SetPoint("BOTTOMLEFT", configFrame, "BOTTOMLEFT", 20, 20)
+    startButton:SetText("Start Recruiting")
+    startButton:SetScript("OnClick", function()
+        WBGH:StartSession(configFrame.selectedBoss, nil)
+        configFrame:Hide()
+    end)
+
+    local stopButton = CreateFrame("Button", "WBGHStopButton", configFrame, "UIPanelButtonTemplate")
+    stopButton:SetSize(140, 30)
+    stopButton:SetPoint("BOTTOMRIGHT", configFrame, "BOTTOMRIGHT", -20, 20)
+    stopButton:SetText("Stop Recruiting")
+    stopButton:SetScript("OnClick", function()
+        WBGH:StopSession()
+    end)
+
+    -- Update UI with current values
+    WBGH:UpdateConfigUI()
+
+    configFrame:Hide()
+end
+
+-- Update Config UI with selected boss values
+function WBGH:UpdateConfigUI()
+    if not configFrame then return end
+
+    local config = self:GetBossConfig(configFrame.selectedBoss)
+
+    -- Update sliders
+    configFrame.sizeSlider:SetValue(config.size or defaults.raidSize)
+    configFrame.tankSlider:SetValue(config.tanks or 1)
+    configFrame.healerSlider:SetValue(config.healers or 6)
+
+    -- Update HR input
+    configFrame.hrInput:SetText(config.hr or "")
+
+    -- Update dropdown text
+    UIDropDownMenu_SetText(WBGHBossDropdown, configFrame.selectedBoss)
+end
+
+-- Show Configuration UI
+function WBGH:ShowConfigUI()
+    if not configFrame then
+        self:CreateConfigUI()
+    end
+    configFrame:Show()
+end
+
 -- Command handlers
 function WBGH:HandleCommand(input)
     local args = {}
@@ -426,8 +751,12 @@ function WBGH:HandleCommand(input)
 
     local cmd = string.lower(args[1])
 
+    -- /wbgh ui
+    if cmd == "ui" or cmd == "config" or cmd == "gui" then
+        self:ShowConfigUI()
+
     -- /wbgh off
-    if cmd == "off" then
+    elseif cmd == "off" then
         self:StopSession()
 
     -- /wbgh set
@@ -523,9 +852,12 @@ end
 
 function WBGH:ShowHelp()
     print("|cff00ff00=== World Boss Group Helper v" .. self.version .. " ===|r")
+    print("|cffffcc00/wbgh ui|r - Open configuration GUI")
     print("|cffffcc00/wbgh <boss> [hard reserve item]|r - Start recruiting")
-    print("  Example: /wbgh azuregos Mature Blue Dragon Sinew")
+    print("  Example: /wbgh Azuregos Mature Blue Dragon Sinew")
     print("|cffffcc00/wbgh off|r - Stop recruiting")
+    print(" ")
+    print("Chat Commands:")
     print("|cffffcc00/wbgh set raidsize <size>|r - Set raid size (default 25)")
     print("|cffffcc00/wbgh set tank <boss> <count>|r - Set tank requirement")
     print("|cffffcc00/wbgh set healer <boss> <count>|r - Set healer requirement")
