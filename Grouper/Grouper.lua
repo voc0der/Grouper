@@ -156,14 +156,24 @@ function Grouper:ScanRaid()
     local inRaid = IsInRaid()
     local inParty = IsInGroup()
 
-    if not inRaid and not inParty then
-        return 0, 0, 0, {}
-    end
-
     local tanks = 0
     local healers = 0
     local classCounts = {}
     local numMembers = 0
+
+    -- Handle solo (not in group or raid yet)
+    if not inRaid and not inParty then
+        numMembers = 1
+        local _, playerClass = UnitClass("player")
+        classCounts[playerClass] = 1
+        local playerRole = UnitGroupRolesAssigned("player")
+        if playerRole == "TANK" then
+            tanks = 1
+        elseif playerRole == "HEALER" then
+            healers = 1
+        end
+        return numMembers, tanks, healers, classCounts
+    end
 
     if inRaid then
         -- Raid group
