@@ -338,9 +338,11 @@ function WBGH:StopSession()
     activeSession.active = false
 
     -- Check for master loot
-    local lootMethod = GetLootMethod()
-    if lootMethod ~= "master" then
-        print("|cffff0000[WBGH]|r WARNING: Master Loot is NOT set! Current method: " .. (lootMethod or "unknown"))
+    if IsInRaid() then
+        local lootMethod, masterlooterPartyID, masterlooterRaidID = GetLootMethod()
+        if lootMethod ~= "master" then
+            print("|cffff0000[WBGH]|r WARNING: Master Loot is NOT set! Current method: " .. (lootMethod or "unknown"))
+        end
     end
 
     if activeSession.updateTimer then
