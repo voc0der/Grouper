@@ -1,0 +1,14 @@
+package-as: WorldBossGroupHelper
+
+enable-nolib-creation: no
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+ignore:
+  - README.md
+  - .gitignore
+  - .github
+
+wowi-archive-previous: no
