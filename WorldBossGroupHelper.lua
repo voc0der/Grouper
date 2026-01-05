@@ -101,37 +101,70 @@ end
 
 -- Scan raid composition
 function WBGH:ScanRaid()
-    if not IsInRaid() then
-        return 0, 0, 0, {}
-    end
+    local inRaid = IsInRaid()
+    local inParty = IsInGroup()
 
-    local numRaid = GetNumGroupMembers()
-    if numRaid == 0 then
+    if not inRaid and not inParty then
         return 0, 0, 0, {}
     end
 
     local tanks = 0
     local healers = 0
     local classCounts = {}
+    local numMembers = 0
 
-    for i = 1, numRaid do
-        local _, _, subgroup, _, _, class, _, online, isDead = GetRaidRosterInfo(i)
+    if inRaid then
+        -- Raid group
+        numMembers = GetNumGroupMembers()
+        for i = 1, numMembers do
+            local _, _, subgroup, _, _, class, _, online, isDead = GetRaidRosterInfo(i)
 
-        if online and not isDead then
-            -- Count classes
-            classCounts[class] = (classCounts[class] or 0) + 1
+            if online and not isDead then
+                -- Count classes
+                classCounts[class] = (classCounts[class] or 0) + 1
 
-            -- Check role (if available)
-            local role = UnitGroupRolesAssigned("raid" .. i)
-            if role == "TANK" then
-                tanks = tanks + 1
-            elseif role == "HEALER" then
-                healers = healers + 1
+                -- Check role (if available)
+                local role = UnitGroupRolesAssigned("raid" .. i)
+                if role == "TANK" then
+                    tanks = tanks + 1
+                elseif role == "HEALER" then
+                    healers = healers + 1
+                end
+            end
+        end
+    else
+        -- Party group (not converted to raid yet)
+        local partyMembers = GetNumGroupMembers() - 1 -- Excludes player
+        numMembers = partyMembers + 1 -- Include player
+
+        -- Count player first
+        local _, playerClass = UnitClass("player")
+        classCounts[playerClass] = (classCounts[playerClass] or 0) + 1
+        local playerRole = UnitGroupRolesAssigned("player")
+        if playerRole == "TANK" then
+            tanks = tanks + 1
+        elseif playerRole == "HEALER" then
+            healers = healers + 1
+        end
+
+        -- Count party members
+        for i = 1, partyMembers do
+            local unit = "party" .. i
+            if UnitExists(unit) and not UnitIsDead(unit) then
+                local _, class = UnitClass(unit)
+                classCounts[class] = (classCounts[class] or 0) + 1
+
+                local role = UnitGroupRolesAssigned(unit)
+                if role == "TANK" then
+                    tanks = tanks + 1
+                elseif role == "HEALER" then
+                    healers = healers + 1
+                end
             end
         end
     end
 
-    return numRaid, tanks, healers, classCounts
+    return numMembers, tanks, healers, classCounts
 end
 
 -- Generate recruitment message
@@ -295,10 +328,10 @@ function WBGH:UpdateButtons()
     end
 
     -- Check if raid is full
-    if IsInRaid() then
-        local numRaid = GetNumGroupMembers()
-        if numRaid >= WorldBossGroupHelperDB.raidSize then
-            print("|cff00ff00[WBGH]|r Raid is full! (" .. numRaid .. "/" .. WorldBossGroupHelperDB.raidSize .. ")")
+    if IsInRaid() or IsInGroup() then
+        local numMembers = GetNumGroupMembers()
+        if numMembers >= WorldBossGroupHelperDB.raidSize then
+            print("|cff00ff00[WBGH]|r Raid is full! (" .. numMembers .. "/" .. WorldBossGroupHelperDB.raidSize .. ")")
             print("|cffff9900[WBGH]|r Use /wbgh off to stop recruiting")
         end
     end
