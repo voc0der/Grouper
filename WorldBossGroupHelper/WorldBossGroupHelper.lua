@@ -654,8 +654,7 @@ function WBGH:CreateConfigUI()
                         info.value = bossName
                         info.isTitle = false
                         info.disabled = false
-                        info.notCheckable = false
-                        info.checked = (configFrame.selectedBoss == bossName)
+                        info.notCheckable = true
                         info.func = OnClick
                         UIDropDownMenu_AddButton(info)
                     end
