@@ -40,7 +40,7 @@ jobs:
       - name: Create release zip
         run: |
           mkdir -p release
-          zip release/WorldBossGroupHelper.zip WorldBossGroupHelper.toc WorldBossGroupHelper.lua
+          zip -r release/WorldBossGroupHelper.zip WorldBossGroupHelper/WorldBossGroupHelper.toc WorldBossGroupHelper/WorldBossGroupHelper.lua
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
