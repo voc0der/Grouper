@@ -811,6 +811,15 @@ function WBGH:CreateConfigUI()
 
     yOffset = yOffset - 60
 
+    -- Preview Button
+    local previewButton = CreateFrame("Button", "WBGHPreviewButton", configFrame, "UIPanelButtonTemplate")
+    previewButton:SetSize(200, 30)
+    previewButton:SetPoint("BOTTOM", configFrame, "BOTTOM", 0, 60)
+    previewButton:SetText("Preview Messages")
+    previewButton:SetScript("OnClick", function()
+        WBGH:ShowPreviewMessages(configFrame.selectedBoss)
+    end)
+
     -- Start/Stop Buttons
     local startButton = CreateFrame("Button", "WBGHStartButton", configFrame, "UIPanelButtonTemplate")
     startButton:SetSize(140, 30)
@@ -851,6 +860,55 @@ function WBGH:UpdateConfigUI()
 
     -- Update dropdown text
     UIDropDownMenu_SetText(WBGHBossDropdown, configFrame.selectedBoss)
+end
+
+-- Show Preview Messages
+function WBGH:ShowPreviewMessages(bossName)
+    local config = self:GetBossConfig(bossName)
+    local raidSize = config.size or 25
+    local hrItem = config.hr or "Example Item"
+
+    print("|cff00ff00[WBGH]|r |cffffcc00Preview Messages for " .. bossName .. ":|r")
+    print(" ")
+
+    -- Example 1: Early recruiting (30%)
+    local count1 = math.floor(raidSize * 0.3)
+    local msg1 = string.format("LFM %s %d/%d - Need all", bossName, count1, raidSize)
+    if hrItem and hrItem ~= "" then
+        msg1 = msg1 .. " - " .. hrItem .. " HR"
+    end
+    print("|cff888888At 30% full:|r")
+    print(msg1)
+    print(" ")
+
+    -- Example 2: Mid recruiting (65% - shows roles)
+    local count2 = math.floor(raidSize * 0.65)
+    local tanksNeeded = math.max(1, config.tanks - math.floor(config.tanks * 0.5))
+    local healersNeeded = math.max(1, config.healers - math.floor(config.healers * 0.6))
+    local msg2 = string.format("LFM %s %d/%d - Need %d Tank%s, %d Healer%s",
+        bossName, count2, raidSize,
+        tanksNeeded, tanksNeeded > 1 and "s" or "",
+        healersNeeded, healersNeeded > 1 and "s" or "")
+    if hrItem and hrItem ~= "" then
+        msg2 = msg2 .. " - " .. hrItem .. " HR"
+    end
+    print("|cff888888At 65% full (shows roles):|r")
+    print(msg2)
+    print(" ")
+
+    -- Example 3: Nearly full (85% - shows roles and missing classes)
+    local count3 = math.floor(raidSize * 0.85)
+    local msg3 = string.format("LFM %s %d/%d - Need 1 Healer / Priests, Warlocks",
+        bossName, count3, raidSize)
+    if hrItem and hrItem ~= "" then
+        msg3 = msg3 .. " - " .. hrItem .. " HR"
+    end
+    print("|cff888888At 85% full (shows roles + missing classes):|r")
+    print(msg3)
+    print(" ")
+
+    print("|cff00ff00[WBGH]|r These are examples based on your current settings.")
+    print("|cff00ff00[WBGH]|r Actual messages will vary based on real raid composition.")
 end
 
 -- Show Configuration UI
