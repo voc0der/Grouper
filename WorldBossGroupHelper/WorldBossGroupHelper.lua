@@ -74,6 +74,7 @@ local majorCities = {
 local tradeButton = nil
 local lfgButton = nil
 local configFrame = nil
+local minimapButton = nil
 
 -- Initialize saved variables
 function WBGH:InitDB()
@@ -95,6 +96,13 @@ function WBGH:InitDB()
 
     if not WorldBossGroupHelperDB.bosses then
         WorldBossGroupHelperDB.bosses = {}
+    end
+
+    if WorldBossGroupHelperDB.minimapButton == nil then
+        WorldBossGroupHelperDB.minimapButton = {
+            show = true,
+            position = 200
+        }
     end
 
     -- Ensure all default bosses exist
@@ -458,6 +466,120 @@ function WBGH:CancelTimer(frame)
     end
 end
 
+-- Create Minimap Button
+function WBGH:CreateMinimapButton()
+    if minimapButton then return end
+
+    minimapButton = CreateFrame("Button", "WBGHMinimapButton", Minimap)
+    minimapButton:SetSize(32, 32)
+    minimapButton:SetFrameStrata("MEDIUM")
+    minimapButton:SetFrameLevel(8)
+    minimapButton:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+
+    -- Icon
+    local icon = minimapButton:CreateTexture(nil, "BACKGROUND")
+    icon:SetSize(20, 20)
+    icon:SetPoint("CENTER", 0, 1)
+    icon:SetTexture("Interface\\Icons\\INV_Misc_Head_Dragon_01")
+    minimapButton.icon = icon
+
+    -- Border
+    local overlay = minimapButton:CreateTexture(nil, "OVERLAY")
+    overlay:SetSize(53, 53)
+    overlay:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    overlay:SetPoint("TOPLEFT")
+
+    -- Tooltip
+    minimapButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:SetText("World Boss Group Helper", 1, 1, 1)
+        GameTooltip:AddLine("Left-click to open config", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Right-click to start/stop", 0.8, 0.8, 0.8)
+        GameTooltip:Show()
+    end)
+
+    minimapButton:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+    end)
+
+    -- Click handlers
+    minimapButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    minimapButton:SetScript("OnClick", function(self, button)
+        if button == "LeftButton" then
+            WBGH:ShowConfigUI()
+        elseif button == "RightButton" then
+            if activeSession.active then
+                WBGH:StopSession()
+            else
+                print("|cffff9900[WBGH]|r Use left-click to open config and start recruiting")
+            end
+        end
+    end)
+
+    -- Dragging
+    minimapButton:RegisterForDrag("LeftButton")
+    minimapButton:SetScript("OnDragStart", function(self)
+        self:LockHighlight()
+        self.dragging = true
+    end)
+
+    minimapButton:SetScript("OnDragStop", function(self)
+        self:UnlockHighlight()
+        self.dragging = false
+    end)
+
+    minimapButton:SetScript("OnUpdate", function(self)
+        if self.dragging then
+            local mx, my = Minimap:GetCenter()
+            local px, py = GetCursorPosition()
+            local scale = Minimap:GetEffectiveScale()
+            px, py = px / scale, py / scale
+
+            local angle = math.atan2(py - my, px - mx)
+            WorldBossGroupHelperDB.minimapButton.position = math.deg(angle)
+            WBGH:UpdateMinimapButtonPosition()
+        else
+            WBGH:UpdateMinimapButtonPosition()
+        end
+    end)
+
+    WBGH:UpdateMinimapButtonPosition()
+end
+
+-- Update Minimap Button Position
+function WBGH:UpdateMinimapButtonPosition()
+    if not minimapButton then return end
+
+    local angle = math.rad(WorldBossGroupHelperDB.minimapButton.position or 200)
+    local x = math.cos(angle) * 80
+    local y = math.sin(angle) * 80
+
+    minimapButton:ClearAllPoints()
+    minimapButton:SetPoint("CENTER", Minimap, "CENTER", x, y)
+end
+
+-- Toggle Minimap Button
+function WBGH:ToggleMinimapButton()
+    if not WorldBossGroupHelperDB.minimapButton then
+        WorldBossGroupHelperDB.minimapButton = { show = true, position = 200 }
+    end
+
+    WorldBossGroupHelperDB.minimapButton.show = not WorldBossGroupHelperDB.minimapButton.show
+
+    if WorldBossGroupHelperDB.minimapButton.show then
+        if not minimapButton then
+            self:CreateMinimapButton()
+        end
+        minimapButton:Show()
+        print("|cff00ff00[WBGH]|r Minimap button shown")
+    else
+        if minimapButton then
+            minimapButton:Hide()
+        end
+        print("|cff00ff00[WBGH]|r Minimap button hidden")
+    end
+end
+
 -- Create Configuration UI
 function WBGH:CreateConfigUI()
     if configFrame then
@@ -755,6 +877,10 @@ function WBGH:HandleCommand(input)
     if cmd == "ui" or cmd == "config" or cmd == "gui" then
         self:ShowConfigUI()
 
+    -- /wbgh minimap
+    elseif cmd == "minimap" or cmd == "mm" then
+        self:ToggleMinimapButton()
+
     -- /wbgh off
     elseif cmd == "off" then
         self:StopSession()
@@ -853,6 +979,7 @@ end
 function WBGH:ShowHelp()
     print("|cff00ff00=== World Boss Group Helper v" .. self.version .. " ===|r")
     print("|cffffcc00/wbgh ui|r - Open configuration GUI")
+    print("|cffffcc00/wbgh minimap|r - Toggle minimap button")
     print("|cffffcc00/wbgh <boss> [hard reserve item]|r - Start recruiting")
     print("  Example: /wbgh Azuregos Mature Blue Dragon Sinew")
     print("|cffffcc00/wbgh off|r - Stop recruiting")
@@ -876,6 +1003,12 @@ eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == "WorldBossGroupHelper" then
         WBGH:InitDB()
+
+        -- Initialize minimap button
+        if WorldBossGroupHelperDB.minimapButton.show then
+            WBGH:CreateMinimapButton()
+        end
+
         print("|cff00ff00[WBGH]|r World Boss Group Helper loaded! Type /wbgh for help.")
     elseif event == "PLAYER_ENTERING_WORLD" then
         if activeSession.active then
