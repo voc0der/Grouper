@@ -40,14 +40,14 @@ jobs:
       - name: Create release zip
         run: |
           mkdir -p release
-          zip -r release/WorldBossGroupHelper.zip WorldBossGroupHelper/WorldBossGroupHelper.toc WorldBossGroupHelper/WorldBossGroupHelper.lua
+          zip -r release/Grouper.zip Grouper/Grouper.toc Grouper/Grouper.lua
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.get_tag.outputs.new_tag }}
           name: Release ${{ steps.get_tag.outputs.new_tag }}
-          files: release/WorldBossGroupHelper.zip
+          files: release/Grouper.zip
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,8 +1,0 @@
-## Interface: 11507
-## Title: World Boss Group Helper
-## Notes: Helps manage PUG groups for world bosses in WoW Classic
-## Author: voc0der
-## Version: 1.0.3
-## SavedVariables: WorldBossGroupHelperDB
-
-WorldBossGroupHelper.lua

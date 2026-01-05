@@ -1,6 +1,6 @@
--- WorldBossGroupHelper: Addon to help manage world boss PUG groups
-local WBGH = {}
-WBGH.version = "1.0.0"
+-- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
+local Grouper = {}
+Grouper.version = "1.0.12"
 
 -- Default settings
 local defaults = {
@@ -77,29 +77,29 @@ local configFrame = nil
 local minimapButton = nil
 
 -- Initialize saved variables
-function WBGH:InitDB()
-    if not WorldBossGroupHelperDB then
-        WorldBossGroupHelperDB = {}
+function Grouper:InitDB()
+    if not GrouperDB then
+        GrouperDB = {}
     end
 
-    if not WorldBossGroupHelperDB.raidSize then
-        WorldBossGroupHelperDB.raidSize = defaults.raidSize
+    if not GrouperDB.raidSize then
+        GrouperDB.raidSize = defaults.raidSize
     end
 
-    if not WorldBossGroupHelperDB.tradeInterval then
-        WorldBossGroupHelperDB.tradeInterval = defaults.tradeInterval
+    if not GrouperDB.tradeInterval then
+        GrouperDB.tradeInterval = defaults.tradeInterval
     end
 
-    if not WorldBossGroupHelperDB.lfgInterval then
-        WorldBossGroupHelperDB.lfgInterval = defaults.lfgInterval
+    if not GrouperDB.lfgInterval then
+        GrouperDB.lfgInterval = defaults.lfgInterval
     end
 
-    if not WorldBossGroupHelperDB.bosses then
-        WorldBossGroupHelperDB.bosses = {}
+    if not GrouperDB.bosses then
+        GrouperDB.bosses = {}
     end
 
-    if WorldBossGroupHelperDB.minimapButton == nil then
-        WorldBossGroupHelperDB.minimapButton = {
+    if GrouperDB.minimapButton == nil then
+        GrouperDB.minimapButton = {
             show = true,
             position = 200
         }
@@ -107,8 +107,8 @@ function WBGH:InitDB()
 
     -- Ensure all default bosses exist
     for boss, config in pairs(defaults.bosses) do
-        if not WorldBossGroupHelperDB.bosses[boss] then
-            WorldBossGroupHelperDB.bosses[boss] = {
+        if not GrouperDB.bosses[boss] then
+            GrouperDB.bosses[boss] = {
                 tanks = config.tanks,
                 healers = config.healers,
                 hr = config.hr,
@@ -120,39 +120,39 @@ function WBGH:InitDB()
 end
 
 -- Get boss config (merge saved with defaults)
-function WBGH:GetBossConfig(bossName)
+function Grouper:GetBossConfig(bossName)
     -- Try exact match first
-    if WorldBossGroupHelperDB.bosses[bossName] then
-        return WorldBossGroupHelperDB.bosses[bossName]
+    if GrouperDB.bosses[bossName] then
+        return GrouperDB.bosses[bossName]
     end
 
     -- Try lowercase match (backwards compatibility)
     local bossLower = string.lower(bossName)
-    for name, config in pairs(WorldBossGroupHelperDB.bosses) do
+    for name, config in pairs(GrouperDB.bosses) do
         if string.lower(name) == bossLower then
             return config
         end
     end
 
     -- Create new boss with defaults
-    WorldBossGroupHelperDB.bosses[bossName] = {
+    GrouperDB.bosses[bossName] = {
         tanks = 1,
         healers = 6,
         hr = nil,
         size = 25,
         category = "Custom"
     }
-    return WorldBossGroupHelperDB.bosses[bossName]
+    return GrouperDB.bosses[bossName]
 end
 
 -- Check if in major city
-function WBGH:InMajorCity()
+function Grouper:InMajorCity()
     local zone = GetRealZoneText()
     return majorCities[zone] == true
 end
 
 -- Scan raid composition
-function WBGH:ScanRaid()
+function Grouper:ScanRaid()
     local inRaid = IsInRaid()
     local inParty = IsInGroup()
 
@@ -220,10 +220,10 @@ function WBGH:ScanRaid()
 end
 
 -- Generate recruitment message
-function WBGH:GenerateMessage()
+function Grouper:GenerateMessage()
     local numRaid, tanks, healers, classCounts = self:ScanRaid()
     local config = self:GetBossConfig(activeSession.boss)
-    local raidSize = config.size or WorldBossGroupHelperDB.raidSize or 25
+    local raidSize = config.size or GrouperDB.raidSize or 25
 
     -- Calculate needs
     local tanksNeeded = math.max(0, config.tanks - tanks)
@@ -294,43 +294,43 @@ function WBGH:GenerateMessage()
 end
 
 -- Send message to channel
-function WBGH:SendToChannel(channel)
+function Grouper:SendToChannel(channel)
     local msg = self:GenerateMessage()
     local channelNum = GetChannelName(channel)
 
     if channelNum and channelNum > 0 then
         SendChatMessage(msg, "CHANNEL", nil, channelNum)
-        print("|cff00ff00[WBGH]|r Sent to " .. channel .. ": " .. msg)
+        print("|cff00ff00[Grouper]|r Sent to " .. channel .. ": " .. msg)
     else
-        print("|cffff0000[WBGH]|r Channel '" .. channel .. "' not found")
+        print("|cffff0000[Grouper]|r Channel '" .. channel .. "' not found")
     end
 end
 
 -- Create or update UI buttons
-function WBGH:CreateButtons()
+function Grouper:CreateButtons()
     -- Trade button
     if not tradeButton then
-        tradeButton = CreateFrame("Button", "WBGHTradeButton", UIParent, "UIPanelButtonTemplate")
+        tradeButton = CreateFrame("Button", "GrouperTradeButton", UIParent, "UIPanelButtonTemplate")
         tradeButton:SetSize(200, 40)
         tradeButton:SetPoint("CENTER", UIParent, "CENTER", 0, 50)
         tradeButton:SetText("Trade Chat (Ready)")
         tradeButton:SetScript("OnClick", function()
-            WBGH:SendToChannel("Trade")
-            activeSession.tradeNextSpam = time() + WorldBossGroupHelperDB.tradeInterval
-            WBGH:UpdateButtons()
+            Grouper:SendToChannel("Trade")
+            activeSession.tradeNextSpam = time() + GrouperDB.tradeInterval
+            Grouper:UpdateButtons()
         end)
     end
 
     -- LFG button
     if not lfgButton then
-        lfgButton = CreateFrame("Button", "WBGHLFGButton", UIParent, "UIPanelButtonTemplate")
+        lfgButton = CreateFrame("Button", "GrouperLFGButton", UIParent, "UIPanelButtonTemplate")
         lfgButton:SetSize(200, 40)
         lfgButton:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
         lfgButton:SetText("LFG Chat (Ready)")
         lfgButton:SetScript("OnClick", function()
-            WBGH:SendToChannel("LookingForGroup")
-            activeSession.lfgNextSpam = time() + WorldBossGroupHelperDB.lfgInterval
-            WBGH:UpdateButtons()
+            Grouper:SendToChannel("LookingForGroup")
+            activeSession.lfgNextSpam = time() + GrouperDB.lfgInterval
+            Grouper:UpdateButtons()
         end)
     end
 
@@ -339,7 +339,7 @@ function WBGH:CreateButtons()
 end
 
 -- Update button states
-function WBGH:UpdateButtons()
+function Grouper:UpdateButtons()
     if not activeSession.active then
         if tradeButton then tradeButton:Hide() end
         if lfgButton then lfgButton:Hide() end
@@ -383,18 +383,18 @@ function WBGH:UpdateButtons()
     if IsInRaid() or IsInGroup() then
         local numMembers = GetNumGroupMembers()
         local config = self:GetBossConfig(activeSession.boss)
-        local targetSize = config.size or WorldBossGroupHelperDB.raidSize or 25
+        local targetSize = config.size or GrouperDB.raidSize or 25
         if numMembers >= targetSize then
-            print("|cff00ff00[WBGH]|r Raid is full! (" .. numMembers .. "/" .. targetSize .. ")")
-            print("|cffff9900[WBGH]|r Use /wbgh off to stop recruiting")
+            print("|cff00ff00[Grouper]|r Raid is full! (" .. numMembers .. "/" .. targetSize .. ")")
+            print("|cffff9900[Grouper]|r Use /grouper off to stop recruiting")
         end
     end
 end
 
 -- Start recruiting session
-function WBGH:StartSession(boss, hrItem)
+function Grouper:StartSession(boss, hrItem)
     if activeSession.active then
-        print("|cffff0000[WBGH]|r Session already active! Use /wbgh off first.")
+        print("|cffff0000[Grouper]|r Session already active! Use /grouper off first.")
         return
     end
 
@@ -404,9 +404,9 @@ function WBGH:StartSession(boss, hrItem)
     activeSession.tradeNextSpam = 0
     activeSession.lfgNextSpam = 0
 
-    print("|cff00ff00[WBGH]|r Started recruiting for " .. boss)
+    print("|cff00ff00[Grouper]|r Started recruiting for " .. boss)
     if hrItem then
-        print("|cff00ff00[WBGH]|r Hard Reserve: " .. hrItem)
+        print("|cff00ff00[Grouper]|r Hard Reserve: " .. hrItem)
     end
 
     self:CreateButtons()
@@ -419,9 +419,9 @@ function WBGH:StartSession(boss, hrItem)
 end
 
 -- Stop recruiting session
-function WBGH:StopSession()
+function Grouper:StopSession()
     if not activeSession.active then
-        print("|cffff0000[WBGH]|r No active session to stop.")
+        print("|cffff0000[Grouper]|r No active session to stop.")
         return
     end
 
@@ -431,7 +431,7 @@ function WBGH:StopSession()
     if IsInRaid() then
         local lootMethod, masterlooterPartyID, masterlooterRaidID = GetLootMethod()
         if lootMethod ~= "master" then
-            print("|cffff0000[WBGH]|r WARNING: Master Loot is NOT set! Current method: " .. (lootMethod or "unknown"))
+            print("|cffff0000[Grouper]|r WARNING: Master Loot is NOT set! Current method: " .. (lootMethod or "unknown"))
         end
     end
 
@@ -443,34 +443,34 @@ function WBGH:StopSession()
     if tradeButton then tradeButton:Hide() end
     if lfgButton then lfgButton:Hide() end
 
-    print("|cff00ff00[WBGH]|r Recruiting stopped.")
+    print("|cff00ff00[Grouper]|r Recruiting stopped.")
 end
 
 -- Simple timer system
-function WBGH:ScheduleRepeatingTimer(funcName, interval)
+function Grouper:ScheduleRepeatingTimer(funcName, interval)
     local frame = CreateFrame("Frame")
     frame.elapsed = 0
     frame:SetScript("OnUpdate", function(self, elapsed)
         self.elapsed = self.elapsed + elapsed
         if self.elapsed >= interval then
             self.elapsed = 0
-            WBGH[funcName](WBGH)
+            Grouper[funcName](Grouper)
         end
     end)
     return frame
 end
 
-function WBGH:CancelTimer(frame)
+function Grouper:CancelTimer(frame)
     if frame then
         frame:SetScript("OnUpdate", nil)
     end
 end
 
 -- Create Minimap Button
-function WBGH:CreateMinimapButton()
+function Grouper:CreateMinimapButton()
     if minimapButton then return end
 
-    minimapButton = CreateFrame("Button", "WBGHMinimapButton", Minimap)
+    minimapButton = CreateFrame("Button", "GrouperMinimapButton", Minimap)
     minimapButton:SetSize(32, 32)
     minimapButton:SetFrameStrata("MEDIUM")
     minimapButton:SetFrameLevel(8)
@@ -492,7 +492,7 @@ function WBGH:CreateMinimapButton()
     -- Tooltip
     minimapButton:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:SetText("World Boss Group Helper", 1, 1, 1)
+        GameTooltip:SetText("Grouper", 1, 1, 1)
         GameTooltip:AddLine("Left-click to open config", 0.8, 0.8, 0.8)
         GameTooltip:AddLine("Right-click to start/stop", 0.8, 0.8, 0.8)
         GameTooltip:Show()
@@ -506,12 +506,12 @@ function WBGH:CreateMinimapButton()
     minimapButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     minimapButton:SetScript("OnClick", function(self, button)
         if button == "LeftButton" then
-            WBGH:ShowConfigUI()
+            Grouper:ShowConfigUI()
         elseif button == "RightButton" then
             if activeSession.active then
-                WBGH:StopSession()
+                Grouper:StopSession()
             else
-                print("|cffff9900[WBGH]|r Use left-click to open config and start recruiting")
+                print("|cffff9900[Grouper]|r Use left-click to open config and start recruiting")
             end
         end
     end)
@@ -536,21 +536,21 @@ function WBGH:CreateMinimapButton()
             px, py = px / scale, py / scale
 
             local angle = math.atan2(py - my, px - mx)
-            WorldBossGroupHelperDB.minimapButton.position = math.deg(angle)
-            WBGH:UpdateMinimapButtonPosition()
+            GrouperDB.minimapButton.position = math.deg(angle)
+            Grouper:UpdateMinimapButtonPosition()
         else
-            WBGH:UpdateMinimapButtonPosition()
+            Grouper:UpdateMinimapButtonPosition()
         end
     end)
 
-    WBGH:UpdateMinimapButtonPosition()
+    Grouper:UpdateMinimapButtonPosition()
 end
 
 -- Update Minimap Button Position
-function WBGH:UpdateMinimapButtonPosition()
+function Grouper:UpdateMinimapButtonPosition()
     if not minimapButton then return end
 
-    local angle = math.rad(WorldBossGroupHelperDB.minimapButton.position or 200)
+    local angle = math.rad(GrouperDB.minimapButton.position or 200)
     local x = math.cos(angle) * 80
     local y = math.sin(angle) * 80
 
@@ -559,36 +559,36 @@ function WBGH:UpdateMinimapButtonPosition()
 end
 
 -- Toggle Minimap Button
-function WBGH:ToggleMinimapButton()
-    if not WorldBossGroupHelperDB.minimapButton then
-        WorldBossGroupHelperDB.minimapButton = { show = true, position = 200 }
+function Grouper:ToggleMinimapButton()
+    if not GrouperDB.minimapButton then
+        GrouperDB.minimapButton = { show = true, position = 200 }
     end
 
-    WorldBossGroupHelperDB.minimapButton.show = not WorldBossGroupHelperDB.minimapButton.show
+    GrouperDB.minimapButton.show = not GrouperDB.minimapButton.show
 
-    if WorldBossGroupHelperDB.minimapButton.show then
+    if GrouperDB.minimapButton.show then
         if not minimapButton then
             self:CreateMinimapButton()
         end
         minimapButton:Show()
-        print("|cff00ff00[WBGH]|r Minimap button shown")
+        print("|cff00ff00[Grouper]|r Minimap button shown")
     else
         if minimapButton then
             minimapButton:Hide()
         end
-        print("|cff00ff00[WBGH]|r Minimap button hidden")
+        print("|cff00ff00[Grouper]|r Minimap button hidden")
     end
 end
 
 -- Create Configuration UI
-function WBGH:CreateConfigUI()
+function Grouper:CreateConfigUI()
     if configFrame then
         configFrame:Show()
         return
     end
 
     -- Main frame
-    configFrame = CreateFrame("Frame", "WBGHConfigFrame", UIParent, "BasicFrameTemplateWithInset")
+    configFrame = CreateFrame("Frame", "GrouperConfigFrame", UIParent, "BasicFrameTemplateWithInset")
     configFrame:SetSize(500, 600)
     configFrame:SetPoint("CENTER")
     configFrame:SetMovable(true)
@@ -600,7 +600,7 @@ function WBGH:CreateConfigUI()
     configFrame.title = configFrame:CreateFontString(nil, "OVERLAY")
     configFrame.title:SetFontObject("GameFontHighlight")
     configFrame.title:SetPoint("LEFT", configFrame.TitleBg, "LEFT", 5, 0)
-    configFrame.title:SetText("World Boss Group Helper")
+    configFrame.title:SetText("Grouper")
 
     -- Selected boss/dungeon
     configFrame.selectedBoss = "Azuregos"
@@ -613,7 +613,7 @@ function WBGH:CreateConfigUI()
     dropdownLabel:SetText("Select Boss/Dungeon:")
 
     -- Create dropdown using UIDropDownMenu
-    local dropdown = CreateFrame("Frame", "WBGHBossDropdown", configFrame, "UIDropDownMenuTemplate")
+    local dropdown = CreateFrame("Frame", "GrouperBossDropdown", configFrame, "UIDropDownMenuTemplate")
     dropdown:SetPoint("TOPLEFT", dropdownLabel, "BOTTOMLEFT", -15, -5)
     UIDropDownMenu_SetWidth(dropdown, 250)
 
@@ -621,7 +621,7 @@ function WBGH:CreateConfigUI()
     local function OnClick(self)
         configFrame.selectedBoss = self.value
         UIDropDownMenu_SetText(dropdown, self.value)
-        WBGH:UpdateConfigUI()
+        Grouper:UpdateConfigUI()
         CloseDropDownMenus()
     end
 
@@ -673,7 +673,7 @@ function WBGH:CreateConfigUI()
     sizeLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
     sizeLabel:SetText("Raid/Group Size:")
 
-    local sizeSlider = CreateFrame("Slider", "WBGHSizeSlider", configFrame, "OptionsSliderTemplate")
+    local sizeSlider = CreateFrame("Slider", "GrouperSizeSlider", configFrame, "OptionsSliderTemplate")
     sizeSlider:SetPoint("TOPLEFT", sizeLabel, "BOTTOMLEFT", 5, -10)
     sizeSlider:SetMinMaxValues(5, 40)
     sizeSlider:SetValueStep(1)
@@ -685,7 +685,7 @@ function WBGH:CreateConfigUI()
     _G[sizeSlider:GetName().."Text"]:SetText("Size: 25")
     sizeSlider:SetScript("OnValueChanged", function(self, value)
         _G[self:GetName().."Text"]:SetText("Size: " .. value)
-        local config = WBGH:GetBossConfig(configFrame.selectedBoss)
+        local config = Grouper:GetBossConfig(configFrame.selectedBoss)
         config.size = value
     end)
     configFrame.sizeSlider = sizeSlider
@@ -697,7 +697,7 @@ function WBGH:CreateConfigUI()
     tankLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
     tankLabel:SetText("Tanks Needed:")
 
-    local tankSlider = CreateFrame("Slider", "WBGHTankSlider", configFrame, "OptionsSliderTemplate")
+    local tankSlider = CreateFrame("Slider", "GrouperTankSlider", configFrame, "OptionsSliderTemplate")
     tankSlider:SetPoint("TOPLEFT", tankLabel, "BOTTOMLEFT", 5, -10)
     tankSlider:SetMinMaxValues(1, 8)
     tankSlider:SetValueStep(1)
@@ -709,7 +709,7 @@ function WBGH:CreateConfigUI()
     _G[tankSlider:GetName().."Text"]:SetText("Tanks: 1")
     tankSlider:SetScript("OnValueChanged", function(self, value)
         _G[self:GetName().."Text"]:SetText("Tanks: " .. value)
-        local config = WBGH:GetBossConfig(configFrame.selectedBoss)
+        local config = Grouper:GetBossConfig(configFrame.selectedBoss)
         config.tanks = value
     end)
     configFrame.tankSlider = tankSlider
@@ -721,7 +721,7 @@ function WBGH:CreateConfigUI()
     healerLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
     healerLabel:SetText("Healers Needed:")
 
-    local healerSlider = CreateFrame("Slider", "WBGHHealerSlider", configFrame, "OptionsSliderTemplate")
+    local healerSlider = CreateFrame("Slider", "GrouperHealerSlider", configFrame, "OptionsSliderTemplate")
     healerSlider:SetPoint("TOPLEFT", healerLabel, "BOTTOMLEFT", 5, -10)
     healerSlider:SetMinMaxValues(1, 15)
     healerSlider:SetValueStep(1)
@@ -733,7 +733,7 @@ function WBGH:CreateConfigUI()
     _G[healerSlider:GetName().."Text"]:SetText("Healers: 6")
     healerSlider:SetScript("OnValueChanged", function(self, value)
         _G[self:GetName().."Text"]:SetText("Healers: " .. value)
-        local config = WBGH:GetBossConfig(configFrame.selectedBoss)
+        local config = Grouper:GetBossConfig(configFrame.selectedBoss)
         config.healers = value
     end)
     configFrame.healerSlider = healerSlider
@@ -745,14 +745,14 @@ function WBGH:CreateConfigUI()
     hrLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
     hrLabel:SetText("Hard Reserve (HR) Item:")
 
-    local hrInput = CreateFrame("EditBox", "WBGHHRInput", configFrame, "InputBoxTemplate")
+    local hrInput = CreateFrame("EditBox", "GrouperHRInput", configFrame, "InputBoxTemplate")
     hrInput:SetPoint("TOPLEFT", hrLabel, "BOTTOMLEFT", 5, -5)
     hrInput:SetSize(300, 20)
     hrInput:SetAutoFocus(false)
     hrInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     hrInput:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     hrInput:SetScript("OnTextChanged", function(self)
-        local config = WBGH:GetBossConfig(configFrame.selectedBoss)
+        local config = Grouper:GetBossConfig(configFrame.selectedBoss)
         local text = self:GetText()
         config.hr = (text ~= "" and text) or nil
     end)
@@ -772,17 +772,17 @@ function WBGH:CreateConfigUI()
     tradeLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
     tradeLabel:SetText("Trade Chat:")
 
-    local tradeInput = CreateFrame("EditBox", "WBGHTradeIntervalInput", configFrame, "InputBoxTemplate")
+    local tradeInput = CreateFrame("EditBox", "GrouperTradeIntervalInput", configFrame, "InputBoxTemplate")
     tradeInput:SetPoint("TOPLEFT", tradeLabel, "BOTTOMLEFT", 5, -5)
     tradeInput:SetSize(80, 20)
     tradeInput:SetAutoFocus(false)
     tradeInput:SetNumeric(true)
-    tradeInput:SetText(tostring(WorldBossGroupHelperDB.tradeInterval or 300))
+    tradeInput:SetText(tostring(GrouperDB.tradeInterval or 300))
     tradeInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     tradeInput:SetScript("OnEnterPressed", function(self)
         local value = tonumber(self:GetText())
         if value and value > 0 then
-            WorldBossGroupHelperDB.tradeInterval = value
+            GrouperDB.tradeInterval = value
         end
         self:ClearFocus()
     end)
@@ -794,17 +794,17 @@ function WBGH:CreateConfigUI()
     lfgLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
     lfgLabel:SetText("LFG Chat:")
 
-    local lfgInput = CreateFrame("EditBox", "WBGHLFGIntervalInput", configFrame, "InputBoxTemplate")
+    local lfgInput = CreateFrame("EditBox", "GrouperLFGIntervalInput", configFrame, "InputBoxTemplate")
     lfgInput:SetPoint("TOPLEFT", lfgLabel, "BOTTOMLEFT", 5, -5)
     lfgInput:SetSize(80, 20)
     lfgInput:SetAutoFocus(false)
     lfgInput:SetNumeric(true)
-    lfgInput:SetText(tostring(WorldBossGroupHelperDB.lfgInterval or 300))
+    lfgInput:SetText(tostring(GrouperDB.lfgInterval or 300))
     lfgInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     lfgInput:SetScript("OnEnterPressed", function(self)
         local value = tonumber(self:GetText())
         if value and value > 0 then
-            WorldBossGroupHelperDB.lfgInterval = value
+            GrouperDB.lfgInterval = value
         end
         self:ClearFocus()
     end)
@@ -812,40 +812,40 @@ function WBGH:CreateConfigUI()
     yOffset = yOffset - 60
 
     -- Preview Button
-    local previewButton = CreateFrame("Button", "WBGHPreviewButton", configFrame, "UIPanelButtonTemplate")
+    local previewButton = CreateFrame("Button", "GrouperPreviewButton", configFrame, "UIPanelButtonTemplate")
     previewButton:SetSize(200, 30)
     previewButton:SetPoint("BOTTOM", configFrame, "BOTTOM", 0, 60)
     previewButton:SetText("Preview Messages")
     previewButton:SetScript("OnClick", function()
-        WBGH:ShowPreviewMessages(configFrame.selectedBoss)
+        Grouper:ShowPreviewMessages(configFrame.selectedBoss)
     end)
 
     -- Start/Stop Buttons
-    local startButton = CreateFrame("Button", "WBGHStartButton", configFrame, "UIPanelButtonTemplate")
+    local startButton = CreateFrame("Button", "GrouperStartButton", configFrame, "UIPanelButtonTemplate")
     startButton:SetSize(140, 30)
     startButton:SetPoint("BOTTOMLEFT", configFrame, "BOTTOMLEFT", 20, 20)
     startButton:SetText("Start Recruiting")
     startButton:SetScript("OnClick", function()
-        WBGH:StartSession(configFrame.selectedBoss, nil)
+        Grouper:StartSession(configFrame.selectedBoss, nil)
         configFrame:Hide()
     end)
 
-    local stopButton = CreateFrame("Button", "WBGHStopButton", configFrame, "UIPanelButtonTemplate")
+    local stopButton = CreateFrame("Button", "GrouperStopButton", configFrame, "UIPanelButtonTemplate")
     stopButton:SetSize(140, 30)
     stopButton:SetPoint("BOTTOMRIGHT", configFrame, "BOTTOMRIGHT", -20, 20)
     stopButton:SetText("Stop Recruiting")
     stopButton:SetScript("OnClick", function()
-        WBGH:StopSession()
+        Grouper:StopSession()
     end)
 
     -- Update UI with current values
-    WBGH:UpdateConfigUI()
+    Grouper:UpdateConfigUI()
 
     configFrame:Hide()
 end
 
 -- Update Config UI with selected boss values
-function WBGH:UpdateConfigUI()
+function Grouper:UpdateConfigUI()
     if not configFrame then return end
 
     local config = self:GetBossConfig(configFrame.selectedBoss)
@@ -859,16 +859,16 @@ function WBGH:UpdateConfigUI()
     configFrame.hrInput:SetText(config.hr or "")
 
     -- Update dropdown text
-    UIDropDownMenu_SetText(WBGHBossDropdown, configFrame.selectedBoss)
+    UIDropDownMenu_SetText(GrouperBossDropdown, configFrame.selectedBoss)
 end
 
 -- Show Preview Messages
-function WBGH:ShowPreviewMessages(bossName)
+function Grouper:ShowPreviewMessages(bossName)
     local config = self:GetBossConfig(bossName)
     local raidSize = config.size or 25
     local hrItem = config.hr or "Example Item"
 
-    print("|cff00ff00[WBGH]|r |cffffcc00Preview Messages for " .. bossName .. ":|r")
+    print("|cff00ff00[Grouper]|r |cffffcc00Preview Messages for " .. bossName .. ":|r")
     print(" ")
 
     -- Example 1: Early recruiting (30%)
@@ -907,12 +907,12 @@ function WBGH:ShowPreviewMessages(bossName)
     print(msg3)
     print(" ")
 
-    print("|cff00ff00[WBGH]|r These are examples based on your current settings.")
-    print("|cff00ff00[WBGH]|r Actual messages will vary based on real raid composition.")
+    print("|cff00ff00[Grouper]|r These are examples based on your current settings.")
+    print("|cff00ff00[Grouper]|r Actual messages will vary based on real raid composition.")
 end
 
 -- Show Configuration UI
-function WBGH:ShowConfigUI()
+function Grouper:ShowConfigUI()
     if not configFrame then
         self:CreateConfigUI()
     end
@@ -920,7 +920,7 @@ function WBGH:ShowConfigUI()
 end
 
 -- Command handlers
-function WBGH:HandleCommand(input)
+function Grouper:HandleCommand(input)
     local args = {}
     for word in string.gmatch(input, "%S+") do
         table.insert(args, word)
@@ -933,22 +933,22 @@ function WBGH:HandleCommand(input)
 
     local cmd = string.lower(args[1])
 
-    -- /wbgh ui
+    -- /grouper ui
     if cmd == "ui" or cmd == "config" or cmd == "gui" then
         self:ShowConfigUI()
 
-    -- /wbgh minimap
+    -- /grouper minimap
     elseif cmd == "minimap" or cmd == "mm" then
         self:ToggleMinimapButton()
 
-    -- /wbgh off
+    -- /grouper off
     elseif cmd == "off" then
         self:StopSession()
 
-    -- /wbgh set
+    -- /grouper set
     elseif cmd == "set" then
         if #args < 3 then
-            print("|cffff0000[WBGH]|r Usage: /wbgh set <option> <value>")
+            print("|cffff0000[Grouper]|r Usage: /grouper set <option> <value>")
             return
         end
 
@@ -957,15 +957,15 @@ function WBGH:HandleCommand(input)
         if option == "raidsize" then
             local size = tonumber(args[3])
             if size and size > 0 and size <= 40 then
-                WorldBossGroupHelperDB.raidSize = size
-                print("|cff00ff00[WBGH]|r Raid size set to " .. size)
+                GrouperDB.raidSize = size
+                print("|cff00ff00[Grouper]|r Raid size set to " .. size)
             else
-                print("|cffff0000[WBGH]|r Invalid raid size (1-40)")
+                print("|cffff0000[Grouper]|r Invalid raid size (1-40)")
             end
 
         elseif option == "tank" or option == "tanks" then
             if #args < 4 then
-                print("|cffff0000[WBGH]|r Usage: /wbgh set tank <boss> <count>")
+                print("|cffff0000[Grouper]|r Usage: /grouper set tank <boss> <count>")
                 return
             end
             local boss = string.lower(args[3])
@@ -973,14 +973,14 @@ function WBGH:HandleCommand(input)
             if count and count >= 0 then
                 local config = self:GetBossConfig(boss)
                 config.tanks = count
-                print("|cff00ff00[WBGH]|r " .. boss .. " tanks set to " .. count)
+                print("|cff00ff00[Grouper]|r " .. boss .. " tanks set to " .. count)
             else
-                print("|cffff0000[WBGH]|r Invalid tank count")
+                print("|cffff0000[Grouper]|r Invalid tank count")
             end
 
         elseif option == "healer" or option == "healers" then
             if #args < 4 then
-                print("|cffff0000[WBGH]|r Usage: /wbgh set healer <boss> <count>")
+                print("|cffff0000[Grouper]|r Usage: /grouper set healer <boss> <count>")
                 return
             end
             local boss = string.lower(args[3])
@@ -988,44 +988,44 @@ function WBGH:HandleCommand(input)
             if count and count >= 0 then
                 local config = self:GetBossConfig(boss)
                 config.healers = count
-                print("|cff00ff00[WBGH]|r " .. boss .. " healers set to " .. count)
+                print("|cff00ff00[Grouper]|r " .. boss .. " healers set to " .. count)
             else
-                print("|cffff0000[WBGH]|r Invalid healer count")
+                print("|cffff0000[Grouper]|r Invalid healer count")
             end
 
         elseif option == "hr" then
             if #args < 4 then
-                print("|cffff0000[WBGH]|r Usage: /wbgh set hr <boss> <item name...>")
+                print("|cffff0000[Grouper]|r Usage: /grouper set hr <boss> <item name...>")
                 return
             end
             local boss = string.lower(args[3])
             local hrItem = table.concat(args, " ", 4)
             local config = self:GetBossConfig(boss)
             config.hr = hrItem
-            print("|cff00ff00[WBGH]|r " .. boss .. " HR set to: " .. hrItem)
+            print("|cff00ff00[Grouper]|r " .. boss .. " HR set to: " .. hrItem)
 
         elseif option == "tradeinterval" then
             local interval = tonumber(args[3])
             if interval and interval > 0 then
-                WorldBossGroupHelperDB.tradeInterval = interval
-                print("|cff00ff00[WBGH]|r Trade interval set to " .. interval .. " seconds")
+                GrouperDB.tradeInterval = interval
+                print("|cff00ff00[Grouper]|r Trade interval set to " .. interval .. " seconds")
             else
-                print("|cffff0000[WBGH]|r Invalid interval")
+                print("|cffff0000[Grouper]|r Invalid interval")
             end
 
         elseif option == "lfginterval" then
             local interval = tonumber(args[3])
             if interval and interval > 0 then
-                WorldBossGroupHelperDB.lfgInterval = interval
-                print("|cff00ff00[WBGH]|r LFG interval set to " .. interval .. " seconds")
+                GrouperDB.lfgInterval = interval
+                print("|cff00ff00[Grouper]|r LFG interval set to " .. interval .. " seconds")
             else
-                print("|cffff0000[WBGH]|r Invalid interval")
+                print("|cffff0000[Grouper]|r Invalid interval")
             end
         else
-            print("|cffff0000[WBGH]|r Unknown setting: " .. option)
+            print("|cffff0000[Grouper]|r Unknown setting: " .. option)
         end
 
-    -- /wbgh <boss> [hr item]
+    -- /grouper <boss> [hr item]
     else
         local boss = args[1]
         local hrItem = nil
@@ -1036,21 +1036,21 @@ function WBGH:HandleCommand(input)
     end
 end
 
-function WBGH:ShowHelp()
-    print("|cff00ff00=== World Boss Group Helper v" .. self.version .. " ===|r")
-    print("|cffffcc00/wbgh ui|r - Open configuration GUI")
-    print("|cffffcc00/wbgh minimap|r - Toggle minimap button")
-    print("|cffffcc00/wbgh <boss> [hard reserve item]|r - Start recruiting")
-    print("  Example: /wbgh Azuregos Mature Blue Dragon Sinew")
-    print("|cffffcc00/wbgh off|r - Stop recruiting")
+function Grouper:ShowHelp()
+    print("|cff00ff00=== Grouper v" .. self.version .. " ===|r")
+    print("|cffffcc00/grouper ui|r - Open configuration GUI")
+    print("|cffffcc00/grouper minimap|r - Toggle minimap button")
+    print("|cffffcc00/grouper <boss> [hard reserve item]|r - Start recruiting")
+    print("  Example: /grouper Azuregos Mature Blue Dragon Sinew")
+    print("|cffffcc00/grouper off|r - Stop recruiting")
     print(" ")
     print("Chat Commands:")
-    print("|cffffcc00/wbgh set raidsize <size>|r - Set raid size (default 25)")
-    print("|cffffcc00/wbgh set tank <boss> <count>|r - Set tank requirement")
-    print("|cffffcc00/wbgh set healer <boss> <count>|r - Set healer requirement")
-    print("|cffffcc00/wbgh set hr <boss> <item>|r - Set default HR for boss")
-    print("|cffffcc00/wbgh set tradeinterval <seconds>|r - Set Trade spam interval")
-    print("|cffffcc00/wbgh set lfginterval <seconds>|r - Set LFG spam interval")
+    print("|cffffcc00/grouper set raidsize <size>|r - Set raid size (default 25)")
+    print("|cffffcc00/grouper set tank <boss> <count>|r - Set tank requirement")
+    print("|cffffcc00/grouper set healer <boss> <count>|r - Set healer requirement")
+    print("|cffffcc00/grouper set hr <boss> <item>|r - Set default HR for boss")
+    print("|cffffcc00/grouper set tradeinterval <seconds>|r - Set Trade spam interval")
+    print("|cffffcc00/grouper set lfginterval <seconds>|r - Set LFG spam interval")
     print(" ")
     print("Buttons appear when recruiting. Click to spam channels.")
     print("Trade chat only works in major cities.")
@@ -1061,24 +1061,24 @@ local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:SetScript("OnEvent", function(self, event, arg1)
-    if event == "ADDON_LOADED" and arg1 == "WorldBossGroupHelper" then
-        WBGH:InitDB()
+    if event == "ADDON_LOADED" and arg1 == "Grouper" then
+        Grouper:InitDB()
 
         -- Initialize minimap button
-        if WorldBossGroupHelperDB.minimapButton.show then
-            WBGH:CreateMinimapButton()
+        if GrouperDB.minimapButton.show then
+            Grouper:CreateMinimapButton()
         end
 
-        print("|cff00ff00[WBGH]|r World Boss Group Helper loaded! Type /wbgh for help.")
+        print("|cff00ff00[Grouper]|r Grouper loaded! Type /grouper for help.")
     elseif event == "PLAYER_ENTERING_WORLD" then
         if activeSession.active then
-            WBGH:UpdateButtons()
+            Grouper:UpdateButtons()
         end
     end
 end)
 
 -- Register slash commands
-SLASH_WBGH1 = "/wbgh"
-SlashCmdList["WBGH"] = function(msg)
-    WBGH:HandleCommand(msg)
+SLASH_GROUPER1 = "/grouper"
+SlashCmdList["GROUPER"] = function(msg)
+    Grouper:HandleCommand(msg)
 end
