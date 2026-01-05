@@ -153,7 +153,8 @@ function WBGH:GenerateMessage()
         -- Under 60%: simple "Need all" message
         msg = msg .. " - Need all"
     else
-        -- At 60%+: detailed role and class needs
+        -- At 60%+: show role needs (tanks/healers)
+        -- At 80%+: also show missing classes
         local roleNeeds = {}
         local classNeeds = {}
 
@@ -164,22 +165,24 @@ function WBGH:GenerateMessage()
             table.insert(roleNeeds, healersNeeded .. " Healer" .. (healersNeeded > 1 and "s" or ""))
         end
 
-        -- Check for missing classes
-        local classNames = {
-            ["WARRIOR"] = "Warriors",
-            ["PALADIN"] = "Paladins",
-            ["HUNTER"] = "Hunters",
-            ["ROGUE"] = "Rogues",
-            ["PRIEST"] = "Priests",
-            ["SHAMAN"] = "Shamans",
-            ["MAGE"] = "Mages",
-            ["WARLOCK"] = "Warlocks",
-            ["DRUID"] = "Druids"
-        }
+        -- Only check for missing classes at 80%+
+        if raidPercent >= 0.8 then
+            local classNames = {
+                ["WARRIOR"] = "Warriors",
+                ["PALADIN"] = "Paladins",
+                ["HUNTER"] = "Hunters",
+                ["ROGUE"] = "Rogues",
+                ["PRIEST"] = "Priests",
+                ["SHAMAN"] = "Shamans",
+                ["MAGE"] = "Mages",
+                ["WARLOCK"] = "Warlocks",
+                ["DRUID"] = "Druids"
+            }
 
-        for class, name in pairs(classNames) do
-            if not classCounts[class] or classCounts[class] == 0 then
-                table.insert(classNeeds, name)
+            for class, name in pairs(classNames) do
+                if not classCounts[class] or classCounts[class] == 0 then
+                    table.insert(classNeeds, name)
+                end
             end
         end
 
