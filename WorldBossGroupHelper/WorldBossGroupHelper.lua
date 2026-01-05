@@ -619,14 +619,13 @@ function WBGH:CreateConfigUI()
 
     -- Populate dropdown
     local function OnClick(self)
-        UIDropDownMenu_SetSelectedID(dropdown, self:GetID())
         configFrame.selectedBoss = self.value
+        UIDropDownMenu_SetText(dropdown, self.value)
         WBGH:UpdateConfigUI()
+        CloseDropDownMenus()
     end
 
     local function initialize(self, level)
-        local info = UIDropDownMenu_CreateInfo()
-
         -- Group bosses by category
         for _, category in ipairs(bossCategories) do
             local foundInCategory = false
@@ -640,17 +639,21 @@ function WBGH:CreateConfigUI()
             end
 
             if foundInCategory then
+                local info = UIDropDownMenu_CreateInfo()
                 info.text = category
                 info.isTitle = true
                 info.notCheckable = true
+                info.disabled = false
                 UIDropDownMenu_AddButton(info)
 
                 -- Add bosses in this category
                 for bossName, config in pairs(defaults.bosses) do
                     if config.category == category then
+                        info = UIDropDownMenu_CreateInfo()
                         info.text = bossName
                         info.value = bossName
                         info.isTitle = false
+                        info.disabled = false
                         info.notCheckable = false
                         info.checked = (configFrame.selectedBoss == bossName)
                         info.func = OnClick
