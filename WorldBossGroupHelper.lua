@@ -101,7 +101,11 @@ end
 
 -- Scan raid composition
 function WBGH:ScanRaid()
-    local numRaid = GetNumRaidMembers()
+    if not IsInRaid() then
+        return 0, 0, 0, {}
+    end
+
+    local numRaid = GetNumGroupMembers()
     if numRaid == 0 then
         return 0, 0, 0, {}
     end
@@ -288,10 +292,12 @@ function WBGH:UpdateButtons()
     end
 
     -- Check if raid is full
-    local numRaid = GetNumRaidMembers()
-    if numRaid >= WorldBossGroupHelperDB.raidSize then
-        print("|cff00ff00[WBGH]|r Raid is full! (" .. numRaid .. "/" .. WorldBossGroupHelperDB.raidSize .. ")")
-        print("|cffff9900[WBGH]|r Use /wbgh off to stop recruiting")
+    if IsInRaid() then
+        local numRaid = GetNumGroupMembers()
+        if numRaid >= WorldBossGroupHelperDB.raidSize then
+            print("|cff00ff00[WBGH]|r Raid is full! (" .. numRaid .. "/" .. WorldBossGroupHelperDB.raidSize .. ")")
+            print("|cffff9900[WBGH]|r Use /wbgh off to stop recruiting")
+        end
     end
 end
 
