@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.20"
+Grouper.version = "1.0.21"
 
 -- Default settings
 local defaults = {
