@@ -118,6 +118,11 @@ function Grouper:InitDB()
         }
     end
 
+    -- Initialize button positions
+    if not GrouperDB.buttonPositions then
+        GrouperDB.buttonPositions = {}
+    end
+
     -- Ensure all default bosses exist
     for boss, config in pairs(defaults.bosses) do
         if not GrouperDB.bosses[boss] then
@@ -504,44 +509,82 @@ function Grouper:RemoveLFGListing()
     end
 end
 
+-- Make a button draggable
+function Grouper:MakeButtonDraggable(button, buttonName)
+    button:SetMovable(true)
+    button:EnableMouse(true)
+    button:RegisterForDrag("LeftButton")
+
+    button:SetScript("OnDragStart", function(self)
+        self:StartMoving()
+    end)
+
+    button:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        -- Save position
+        local point, _, relativePoint, xOfs, yOfs = self:GetPoint()
+        GrouperDB.buttonPositions[buttonName] = {
+            point = point,
+            relativePoint = relativePoint,
+            xOfs = xOfs,
+            yOfs = yOfs
+        }
+    end)
+end
+
+-- Restore button position
+function Grouper:RestoreButtonPosition(button, buttonName, defaultX, defaultY)
+    local saved = GrouperDB.buttonPositions[buttonName]
+    if saved then
+        button:ClearAllPoints()
+        button:SetPoint(saved.point, UIParent, saved.relativePoint, saved.xOfs, saved.yOfs)
+    else
+        button:ClearAllPoints()
+        button:SetPoint("CENTER", UIParent, "CENTER", defaultX, defaultY)
+    end
+end
+
 -- Create or update UI buttons
 function Grouper:CreateButtons()
     -- Stop button
     if not stopButton then
         stopButton = CreateFrame("Button", "GrouperStopButton", UIParent, "UIPanelButtonTemplate")
         stopButton:SetSize(200, 40)
-        stopButton:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
         stopButton:SetText("Stop Recruiting")
         stopButton:SetScript("OnClick", function()
             Grouper:StopSession()
         end)
+        Grouper:MakeButtonDraggable(stopButton, "stop")
     end
+    Grouper:RestoreButtonPosition(stopButton, "stop", 0, 100)
 
     -- Trade button
     if not tradeButton then
         tradeButton = CreateFrame("Button", "GrouperTradeButton", UIParent, "UIPanelButtonTemplate")
         tradeButton:SetSize(200, 40)
-        tradeButton:SetPoint("CENTER", UIParent, "CENTER", 0, 50)
         tradeButton:SetText("Trade Chat (Ready)")
         tradeButton:SetScript("OnClick", function()
             Grouper:SendToChannel("Trade")
             activeSession.tradeNextSpam = time() + GrouperDB.tradeInterval
             Grouper:UpdateButtons()
         end)
+        Grouper:MakeButtonDraggable(tradeButton, "trade")
     end
+    Grouper:RestoreButtonPosition(tradeButton, "trade", 0, 50)
 
     -- LFG button
     if not lfgButton then
         lfgButton = CreateFrame("Button", "GrouperLFGButton", UIParent, "UIPanelButtonTemplate")
         lfgButton:SetSize(200, 40)
-        lfgButton:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
         lfgButton:SetText("LFG Chat (Ready)")
         lfgButton:SetScript("OnClick", function()
             Grouper:SendToChannel("LookingForGroup")
             activeSession.lfgNextSpam = time() + GrouperDB.lfgInterval
             Grouper:UpdateButtons()
         end)
+        Grouper:MakeButtonDraggable(lfgButton, "lfg")
     end
+    Grouper:RestoreButtonPosition(lfgButton, "lfg", 0, 0)
 
     stopButton:Show()
     tradeButton:Show()
