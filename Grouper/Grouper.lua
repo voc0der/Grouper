@@ -73,6 +73,7 @@ local majorCities = {
 -- UI Frame references
 local tradeButton = nil
 local lfgButton = nil
+local stopButton = nil
 local configFrame = nil
 local minimapButton = nil
 
@@ -239,11 +240,18 @@ function Grouper:GenerateMessage()
     local tanksNeeded = math.max(0, config.tanks - tanks)
     local healersNeeded = math.max(0, config.healers - healers)
 
-    -- Build message
-    local msg = string.format("LFM %s %d/%d", activeSession.boss, numRaid, raidSize)
+    -- Calculate raid percentage
+    local raidPercent = numRaid / raidSize
+
+    -- Build message (exclude count if under 20% filled)
+    local msg
+    if raidPercent < 0.2 then
+        msg = string.format("LFM %s", activeSession.boss)
+    else
+        msg = string.format("LFM %s %d/%d", activeSession.boss, numRaid, raidSize)
+    end
 
     -- Add needs
-    local raidPercent = numRaid / raidSize
     if raidPercent < 0.6 then
         -- Under 60%: simple "Need all" message
         msg = msg .. " - Need all"
@@ -327,6 +335,17 @@ end
 
 -- Create or update UI buttons
 function Grouper:CreateButtons()
+    -- Stop button
+    if not stopButton then
+        stopButton = CreateFrame("Button", "GrouperStopButton", UIParent, "UIPanelButtonTemplate")
+        stopButton:SetSize(200, 40)
+        stopButton:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
+        stopButton:SetText("Stop Recruiting")
+        stopButton:SetScript("OnClick", function()
+            Grouper:StopSession()
+        end)
+    end
+
     -- Trade button
     if not tradeButton then
         tradeButton = CreateFrame("Button", "GrouperTradeButton", UIParent, "UIPanelButtonTemplate")
@@ -353,6 +372,7 @@ function Grouper:CreateButtons()
         end)
     end
 
+    stopButton:Show()
     tradeButton:Show()
     lfgButton:Show()
 end
@@ -360,6 +380,7 @@ end
 -- Update button states
 function Grouper:UpdateButtons()
     if not activeSession.active then
+        if stopButton then stopButton:Hide() end
         if tradeButton then tradeButton:Hide() end
         if lfgButton then lfgButton:Hide() end
         return
@@ -405,7 +426,6 @@ function Grouper:UpdateButtons()
         local targetSize = config.size or GrouperDB.raidSize or 25
         if numMembers >= targetSize then
             print("|cff00ff00[Grouper]|r Raid is full! (" .. numMembers .. "/" .. targetSize .. ")")
-            print("|cffff9900[Grouper]|r Use /grouper off to stop recruiting")
         end
     end
 end
@@ -459,6 +479,7 @@ function Grouper:StopSession()
         activeSession.updateTimer = nil
     end
 
+    if stopButton then stopButton:Hide() end
     if tradeButton then tradeButton:Hide() end
     if lfgButton then lfgButton:Hide() end
 
@@ -910,40 +931,49 @@ function Grouper:ShowPreviewMessages(bossName)
     print("|cff00ff00[Grouper]|r |cffffcc00Preview Messages for " .. bossName .. ":|r")
     print(" ")
 
-    -- Example 1: Early recruiting (30%)
-    local count1 = math.floor(raidSize * 0.3)
-    local msg1 = string.format("LFM %s %d/%d - Need all", bossName, count1, raidSize)
+    -- Example 1: Very early recruiting (10% - no count shown)
+    local msg1 = string.format("LFM %s - Need all", bossName)
     if hrItem and hrItem ~= "" then
         msg1 = msg1 .. " - " .. hrItem .. " HR"
     end
-    print("|cff888888At 30% full:|r")
+    print("|cff888888At 10% full (no count shown):|r")
     print(msg1)
     print(" ")
 
-    -- Example 2: Mid recruiting (65% - shows roles)
-    local count2 = math.floor(raidSize * 0.65)
-    local tanksNeeded = math.max(1, config.tanks - math.floor(config.tanks * 0.5))
-    local healersNeeded = math.max(1, config.healers - math.floor(config.healers * 0.6))
-    local msg2 = string.format("LFM %s %d/%d - Need %d Tank%s, %d Healer%s",
-        bossName, count2, raidSize,
-        tanksNeeded, tanksNeeded > 1 and "s" or "",
-        healersNeeded, healersNeeded > 1 and "s" or "")
+    -- Example 2: Early recruiting (30%)
+    local count2 = math.floor(raidSize * 0.3)
+    local msg2 = string.format("LFM %s %d/%d - Need all", bossName, count2, raidSize)
     if hrItem and hrItem ~= "" then
         msg2 = msg2 .. " - " .. hrItem .. " HR"
     end
-    print("|cff888888At 65% full (shows roles):|r")
+    print("|cff888888At 30% full:|r")
     print(msg2)
     print(" ")
 
-    -- Example 3: Nearly full (85% - shows roles and missing classes)
-    local count3 = math.floor(raidSize * 0.85)
-    local msg3 = string.format("LFM %s %d/%d - Need 1 Healer / Priests, Warlocks",
-        bossName, count3, raidSize)
+    -- Example 3: Mid recruiting (65% - shows roles)
+    local count3 = math.floor(raidSize * 0.65)
+    local tanksNeeded = math.max(1, config.tanks - math.floor(config.tanks * 0.5))
+    local healersNeeded = math.max(1, config.healers - math.floor(config.healers * 0.6))
+    local msg3 = string.format("LFM %s %d/%d - Need %d Tank%s, %d Healer%s",
+        bossName, count3, raidSize,
+        tanksNeeded, tanksNeeded > 1 and "s" or "",
+        healersNeeded, healersNeeded > 1 and "s" or "")
     if hrItem and hrItem ~= "" then
         msg3 = msg3 .. " - " .. hrItem .. " HR"
     end
-    print("|cff888888At 85% full (shows roles + missing classes):|r")
+    print("|cff888888At 65% full (shows roles):|r")
     print(msg3)
+    print(" ")
+
+    -- Example 4: Nearly full (85% - shows roles and missing classes)
+    local count4 = math.floor(raidSize * 0.85)
+    local msg4 = string.format("LFM %s %d/%d - Need 1 Healer / Priests, Warlocks",
+        bossName, count4, raidSize)
+    if hrItem and hrItem ~= "" then
+        msg4 = msg4 .. " - " .. hrItem .. " HR"
+    end
+    print("|cff888888At 85% full (shows roles + missing classes):|r")
+    print(msg4)
     print(" ")
 
     print("|cff00ff00[Grouper]|r These are examples based on your current settings.")
