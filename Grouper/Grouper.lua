@@ -466,8 +466,8 @@ function Grouper:StopSession()
 
     activeSession.active = false
 
-    -- Check for master loot
-    if IsInRaid() then
+    -- Check for master loot (if API is available)
+    if IsInRaid() and GetLootMethod then
         local lootMethod, masterlooterPartyID, masterlooterRaidID = GetLootMethod()
         if lootMethod ~= "master" then
             print("|cffff0000[Grouper]|r WARNING: Master Loot is NOT set! Current method: " .. (lootMethod or "unknown"))

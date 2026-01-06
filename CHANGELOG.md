@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Interval validation now properly accepts values as you type
 - Cooldown changes are now applied immediately and saved correctly
+- Stop Recruiting button crash when GetLootMethod API is unavailable (added safety check)
 
 ## [1.0.12] - Previous Release
 
