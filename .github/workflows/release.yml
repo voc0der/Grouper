@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "v*"
 
 jobs:
   release:
@@ -19,85 +17,43 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get version info
+      - name: Get next version
         id: get_version
         run: |
-          # Check if this is a tag push
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "is_tag=true" >> $GITHUB_OUTPUT
-            echo "Tag release: $VERSION"
-          else
-            # Get the latest tag, or use 1.0.0 if no tags exist
-            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-            VERSION=${LATEST_TAG#v}
+          # Get the latest tag, or use 1.0.12 if no tags exist (last manual release)
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.12")
+          VERSION=${LATEST_TAG#v}
 
-            # Extract version numbers
-            MAJOR=$(echo $VERSION | cut -d. -f1)
-            MINOR=$(echo $VERSION | cut -d. -f2)
-            PATCH=$(echo $VERSION | cut -d. -f3)
+          # Extract version numbers
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          PATCH=$(echo $VERSION | cut -d. -f3)
 
-            # Increment patch version
-            NEW_PATCH=$((PATCH + 1))
-            VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+          # Increment patch version
+          NEW_PATCH=$((PATCH + 1))
+          NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
+          NEW_TAG="v${NEW_VERSION}"
 
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "is_tag=false" >> $GITHUB_OUTPUT
-            echo "Auto-incrementing to: $VERSION"
-          fi
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_TAG"
 
-      - name: Update TOC version
+      - name: Update version in files
         run: |
           sed -i "s/^## Version: .*/## Version: ${{ steps.get_version.outputs.version }}/" Grouper.toc
           sed -i "s/Grouper.version = .*/Grouper.version = \"${{ steps.get_version.outputs.version }}\"/" Grouper.lua
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Grouper.toc Grouper.lua
+          git commit -m "Bump version to ${{ steps.get_version.outputs.version }}" || echo "No changes to commit"
+
+      - name: Create and push tag
+        run: |
+          git tag ${{ steps.get_version.outputs.tag }}
+          git push origin ${{ steps.get_version.outputs.tag }}
 
       - name: Package and release
         uses: BigWigsMods/packager@v2
-        with:
-          args: -p ${{ steps.get_version.outputs.version }}
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
           GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract changelog for GitHub release
-        if: steps.get_version.outputs.is_tag == 'false'
-        id: changelog
-        run: |
-          # Extract [Unreleased] section from CHANGELOG.md
-          if [ -f CHANGELOG.md ]; then
-            CHANGELOG=$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | sed '$d' | tail -n +2)
-
-            {
-              echo "## What's New"
-              echo ""
-              echo "$CHANGELOG"
-              echo ""
-              echo "## Installation"
-              echo ""
-              echo "Download \`Grouper.zip\` from the assets below and extract to your \`World of Warcraft/_classic_/Interface/AddOns/\` directory."
-              echo ""
-              echo "Or install from [CurseForge](https://www.curseforge.com/wow/addons/grouper-classic)"
-              echo ""
-              echo "## Usage"
-              echo ""
-              echo "Type \`/grouper\` to open the configuration GUI and start recruiting!"
-            } > release_notes.md
-
-            cat release_notes.md
-          else
-            echo "## Release v${{ steps.get_version.outputs.version }}" > release_notes.md
-          fi
-
-      - name: Create GitHub release (if not tagged)
-        if: steps.get_version.outputs.is_tag == 'false'
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ steps.get_version.outputs.version }}
-          name: Release v${{ steps.get_version.outputs.version }}
-          files: .release/Grouper-*.zip
-          body_path: release_notes.md
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
