@@ -1260,6 +1260,10 @@ function Grouper:HandleCommand(input)
     if cmd == "help" or cmd == "?" then
         self:ShowHelp()
 
+    -- /grouper about
+    elseif cmd == "about" then
+        self:ShowAbout()
+
     -- /grouper ui (kept for compatibility)
     elseif cmd == "ui" or cmd == "config" or cmd == "gui" then
         self:ShowConfigUI()
@@ -1367,6 +1371,7 @@ function Grouper:ShowHelp()
     print("|cff00ff00=== Grouper v" .. self.version .. " ===|r")
     print("|cffffcc00/grouper|r - Open configuration GUI")
     print("|cffffcc00/grouper help|r - Show this help")
+    print("|cffffcc00/grouper about|r - Show author and addon information")
     print("|cffffcc00/grouper minimap|r - Toggle minimap button")
     print("|cffffcc00/grouper <boss> [hard reserve item]|r - Start recruiting")
     print("  Example: /grouper Azuregos Mature Blue Dragon Sinew")
@@ -1382,6 +1387,19 @@ function Grouper:ShowHelp()
     print(" ")
     print("Buttons appear when recruiting. Click to spam channels.")
     print("Trade chat only works in major cities.")
+end
+
+function Grouper:ShowAbout()
+    print("|cff00ff00=== Grouper v" .. self.version .. " ===|r")
+    print(" ")
+    print("|cffffcc00Author:|r voc0der")
+    print("|cffffcc00GitHub:|r https://github.com/voc0der/Grouper")
+    print("|cffffcc00CurseForge:|r https://www.curseforge.com/wow/addons/grouper-classic")
+    print(" ")
+    print("Grouper helps manage PUG groups for raids, dungeons, and world bosses.")
+    print("Features smart recruitment messages, boss kill tracking, and more!")
+    print(" ")
+    print("Type |cffffcc00/grouper help|r for command list.")
 end
 
 -- Event handlers
