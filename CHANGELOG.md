@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Draggable spam buttons with saved positions
+  - LFG, Trade, and Stop Recruiting buttons can now be repositioned
+  - Button positions are saved and restored between sessions
+  - Buttons default to center screen on first use
 - Automatic Group Finder (LFG) integration for Anniversary/Season of Discovery
   - Automatically creates and updates Group Finder listing when recruiting
   - Listing updates in real-time as group fills

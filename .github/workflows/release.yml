@@ -1,9 +1,11 @@
-name: Create Release
+name: Package and Release
 
 on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
 
 jobs:
   release:
@@ -17,35 +19,55 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get latest tag
-        id: get_tag
+      - name: Get version info
+        id: get_version
         run: |
-          # Get the latest tag, or use 1.0.0 if no tags exist
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
-          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          # Check if this is a tag push
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "is_tag=true" >> $GITHUB_OUTPUT
+            echo "Tag release: $VERSION"
+          else
+            # Get the latest tag, or use 1.0.0 if no tags exist
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+            VERSION=${LATEST_TAG#v}
 
-          # Extract version numbers
-          VERSION=${LATEST_TAG#v}
-          MAJOR=$(echo $VERSION | cut -d. -f1)
-          MINOR=$(echo $VERSION | cut -d. -f2)
-          PATCH=$(echo $VERSION | cut -d. -f3)
+            # Extract version numbers
+            MAJOR=$(echo $VERSION | cut -d. -f1)
+            MINOR=$(echo $VERSION | cut -d. -f2)
+            PATCH=$(echo $VERSION | cut -d. -f3)
 
-          # Increment patch version
-          NEW_PATCH=$((PATCH + 1))
-          NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+            # Increment patch version
+            NEW_PATCH=$((PATCH + 1))
+            VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
 
-          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
-          echo "New version: $NEW_TAG"
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "is_tag=false" >> $GITHUB_OUTPUT
+            echo "Auto-incrementing to: $VERSION"
+          fi
 
-      - name: Extract changelog
+      - name: Update TOC version
+        run: |
+          sed -i "s/^## Version: .*/## Version: ${{ steps.get_version.outputs.version }}/" Grouper/Grouper.toc
+          sed -i "s/Grouper.version = .*/Grouper.version = \"${{ steps.get_version.outputs.version }}\"/" Grouper/Grouper.lua
+
+      - name: Package and release
+        uses: BigWigsMods/packager@v2
+        with:
+          args: -p ${{ steps.get_version.outputs.version }}
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract changelog for GitHub release
+        if: steps.get_version.outputs.is_tag == 'false'
         id: changelog
         run: |
           # Extract [Unreleased] section from CHANGELOG.md
           if [ -f CHANGELOG.md ]; then
-            # Get content between [Unreleased] and next version heading
             CHANGELOG=$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | sed '$d' | tail -n +2)
 
-            # Create formatted release notes
             {
               echo "## What's New"
               echo ""
@@ -53,34 +75,29 @@ jobs:
               echo ""
               echo "## Installation"
               echo ""
-              echo "Download \`Grouper.zip\` and extract to your \`World of Warcraft/_classic_/Interface/AddOns/\` directory."
+              echo "Download \`Grouper.zip\` from the assets below and extract to your \`World of Warcraft/_classic_/Interface/AddOns/\` directory."
               echo ""
-              echo "Or use CurseBreaker: \`install https://github.com/voc0der/Grouper\`"
+              echo "Or install from [CurseForge](https://www.curseforge.com/wow/addons/grouper-classic)"
               echo ""
               echo "## Usage"
               echo ""
               echo "Type \`/grouper\` to open the configuration GUI and start recruiting!"
-              echo ""
-              echo "See the [README](https://github.com/voc0der/Grouper#readme) for full documentation."
             } > release_notes.md
 
             cat release_notes.md
           else
-            echo "No CHANGELOG.md found"
-            echo "## Release ${{ steps.get_tag.outputs.new_tag }}" > release_notes.md
+            echo "## Release v${{ steps.get_version.outputs.version }}" > release_notes.md
           fi
 
-      - name: Create release zip
-        run: |
-          mkdir -p release
-          zip -r release/Grouper.zip Grouper/Grouper.toc Grouper/Grouper.lua
-
-      - name: Create Release
+      - name: Create GitHub release (if not tagged)
+        if: steps.get_version.outputs.is_tag == 'false'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.get_tag.outputs.new_tag }}
-          name: Release ${{ steps.get_tag.outputs.new_tag }}
-          files: release/Grouper.zip
+          tag_name: v${{ steps.get_version.outputs.version }}
+          name: Release v${{ steps.get_version.outputs.version }}
+          files: .release/Grouper-*.zip
           body_path: release_notes.md
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
