@@ -37,6 +37,39 @@ jobs:
           echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
           echo "New version: $NEW_TAG"
 
+      - name: Extract changelog
+        id: changelog
+        run: |
+          # Extract [Unreleased] section from CHANGELOG.md
+          if [ -f CHANGELOG.md ]; then
+            # Get content between [Unreleased] and next version heading
+            CHANGELOG=$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | sed '$d' | tail -n +2)
+
+            # Create formatted release notes
+            {
+              echo "## What's New"
+              echo ""
+              echo "$CHANGELOG"
+              echo ""
+              echo "## Installation"
+              echo ""
+              echo "Download \`Grouper.zip\` and extract to your \`World of Warcraft/_classic_/Interface/AddOns/\` directory."
+              echo ""
+              echo "Or use CurseBreaker: \`install https://github.com/voc0der/Grouper\`"
+              echo ""
+              echo "## Usage"
+              echo ""
+              echo "Type \`/grouper ui\` to open the configuration GUI and start recruiting!"
+              echo ""
+              echo "See the [README](https://github.com/voc0der/Grouper#readme) for full documentation."
+            } > release_notes.md
+
+            cat release_notes.md
+          else
+            echo "No CHANGELOG.md found"
+            echo "## Release ${{ steps.get_tag.outputs.new_tag }}" > release_notes.md
+          fi
+
       - name: Create release zip
         run: |
           mkdir -p release
@@ -48,6 +81,6 @@ jobs:
           tag_name: ${{ steps.get_tag.outputs.new_tag }}
           name: Release ${{ steps.get_tag.outputs.new_tag }}
           files: release/Grouper.zip
-          generate_release_notes: true
+          body_path: release_notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

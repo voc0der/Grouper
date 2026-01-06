@@ -4,8 +4,11 @@
 
 Every push to `main` triggers an automatic release via GitHub Actions:
 - Auto-increments the patch version (e.g., v1.0.12 → v1.0.13)
-- Creates a GitHub release with auto-generated notes from commits
+- Extracts release notes from CHANGELOG.md [Unreleased] section
+- Creates a GitHub release with formatted notes
 - Builds and attaches `Grouper.zip` to the release
+
+**The release notes come directly from CHANGELOG.md**, so keep the [Unreleased] section updated!
 
 ## Manual Steps (For Major/Minor Releases or Enhanced Notes)
 
