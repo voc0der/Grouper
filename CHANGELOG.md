@@ -20,11 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Four preview message examples including sub-20% case
 - CHANGELOG.md for tracking version history
 - Release documentation and templates
-- Boss kill tracking feature
+- Boss kill tracking feature for World Bosses
   - Displays time since last kill (e.g., "Killed 16 days ago") on right side of UI
-  - "Mark as Killed" button to record boss kills
-  - Tracks kill timestamps for all bosses/dungeons
+  - "Mark as Killed" button to manually record boss kills (World Bosses only)
   - Helps remember world boss respawn timers
+- Instance lockout tracking for raids and dungeons
+  - Shows remaining lockout time (e.g., "Locked out - 2d 14h remaining")
+  - Automatically detects if you're saved to an instance
+  - Displays "Not saved" if no active lockout
 
 ### Changed
 - Default spam intervals reduced from 300 to 60 seconds for Trade and LFG channels

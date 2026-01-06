@@ -201,6 +201,33 @@ function Grouper:FormatTimeSinceKill(bossName)
     end
 end
 
+-- Get instance lockout info
+function Grouper:GetInstanceLockout(bossName)
+    local numSaved = GetNumSavedInstances()
+
+    for i = 1, numSaved do
+        local name, id, reset, difficulty, locked, extended, instanceIDMostSig, isRaid, maxPlayers, difficultyName, numEncounters, encounterProgress = GetSavedInstanceInfo(i)
+
+        -- Try to match instance name with boss name
+        if name and locked and string.find(bossName, name) or string.find(name, bossName) then
+            local hours = math.floor(reset / 3600)
+            local days = math.floor(hours / 24)
+            local remainingHours = hours % 24
+
+            if days > 0 then
+                return string.format("Locked out - %dd %dh remaining", days, remainingHours)
+            elseif hours > 0 then
+                return string.format("Locked out - %d hour%s remaining", hours, hours > 1 and "s" or "")
+            else
+                local minutes = math.floor(reset / 60)
+                return string.format("Locked out - %d min remaining", minutes)
+            end
+        end
+    end
+
+    return "Not saved"
+end
+
 -- Check if in major city
 function Grouper:InMajorCity()
     local zone = GetRealZoneText()
@@ -1088,10 +1115,21 @@ function Grouper:UpdateConfigUI()
     -- Update dropdown text
     UIDropDownMenu_SetText(GrouperBossDropdown, configFrame.selectedBoss)
 
-    -- Update kill tracking label
-    if configFrame.killLabel then
-        local timeText = self:FormatTimeSinceKill(configFrame.selectedBoss)
-        configFrame.killLabel:SetText(timeText)
+    -- Update tracking label based on category
+    if configFrame.killLabel and configFrame.killButton then
+        local isWorldBoss = config.category == "World Boss"
+
+        if isWorldBoss then
+            -- Show kill tracking for world bosses
+            local timeText = self:FormatTimeSinceKill(configFrame.selectedBoss)
+            configFrame.killLabel:SetText(timeText)
+            configFrame.killButton:Show()
+        else
+            -- Show instance lockout for raids/dungeons
+            local lockoutText = self:GetInstanceLockout(configFrame.selectedBoss)
+            configFrame.killLabel:SetText(lockoutText)
+            configFrame.killButton:Hide()
+        end
     end
 end
 
