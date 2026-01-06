@@ -59,7 +59,7 @@ jobs:
               echo ""
               echo "## Usage"
               echo ""
-              echo "Type \`/grouper ui\` to open the configuration GUI and start recruiting!"
+              echo "Type \`/grouper\` to open the configuration GUI and start recruiting!"
               echo ""
               echo "See the [README](https://github.com/voc0der/Grouper#readme) for full documentation."
             } > release_notes.md
