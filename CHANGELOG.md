@@ -8,11 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- MIT License for open source distribution
 - Stop Recruiting button above Trade/LFG buttons for easy access to stop recruiting
 - Faction-based class filtering (Paladins excluded from Horde, Shamans excluded from Alliance for pre-TBC)
 - Auto-save on text change for interval inputs in UI
 - User feedback messages when intervals are updated
 - Four preview message examples including sub-20% case
+- CHANGELOG.md for tracking version history
+- Release documentation and templates
 
 ### Changed
 - Default spam intervals reduced from 300 to 60 seconds for Trade and LFG channels
