@@ -49,8 +49,8 @@ jobs:
 
       - name: Update TOC version
         run: |
-          sed -i "s/^## Version: .*/## Version: ${{ steps.get_version.outputs.version }}/" Grouper/Grouper.toc
-          sed -i "s/Grouper.version = .*/Grouper.version = \"${{ steps.get_version.outputs.version }}\"/" Grouper/Grouper.lua
+          sed -i "s/^## Version: .*/## Version: ${{ steps.get_version.outputs.version }}/" Grouper.toc
+          sed -i "s/Grouper.version = .*/Grouper.version = \"${{ steps.get_version.outputs.version }}\"/" Grouper.lua
 
       - name: Package and release
         uses: BigWigsMods/packager@v2
