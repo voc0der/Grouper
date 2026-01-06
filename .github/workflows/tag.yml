@@ -17,24 +17,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check if already tagged
-        id: check_tag
-        run: |
-          # Get current commit
-          CURRENT_COMMIT=$(git rev-parse HEAD)
-
-          # Check if this commit already has a tag
-          EXISTING_TAG=$(git tag --points-at HEAD | grep "^v" || echo "")
-
-          if [ -n "$EXISTING_TAG" ]; then
-            echo "Commit already tagged with $EXISTING_TAG, skipping"
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Calculate next version
-        if: steps.check_tag.outputs.skip == 'false'
         id: get_version
         run: |
           # Get the latest tag, or use 1.0.19 if no tags exist
@@ -51,18 +34,25 @@ jobs:
           NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
           NEW_TAG="v${NEW_VERSION}"
 
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
-          echo "Creating new tag: $NEW_TAG"
+          # Check if new tag already exists
+          if git rev-parse "$NEW_TAG" >/dev/null 2>&1; then
+            echo "Tag $NEW_TAG already exists, skipping"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "Creating new tag: $NEW_TAG"
+          fi
 
       - name: Update version in files
-        if: steps.check_tag.outputs.skip == 'false'
+        if: steps.get_version.outputs.skip == 'false'
         run: |
           sed -i "s/^## Version: .*/## Version: ${{ steps.get_version.outputs.version }}/" Grouper.toc
           sed -i "s/Grouper.version = .*/Grouper.version = \"${{ steps.get_version.outputs.version }}\"/" Grouper.lua
 
       - name: Commit version bump
-        if: steps.check_tag.outputs.skip == 'false'
+        if: steps.get_version.outputs.skip == 'false'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -71,7 +61,7 @@ jobs:
           git push
 
       - name: Create and push tag
-        if: steps.check_tag.outputs.skip == 'false'
+        if: steps.get_version.outputs.skip == 'false'
         run: |
           git tag ${{ steps.get_version.outputs.tag }}
           git push origin ${{ steps.get_version.outputs.tag }}
