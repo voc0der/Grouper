@@ -167,43 +167,124 @@ function Grouper:GetBossConfig(bossName)
     return GrouperDB.bosses[bossName]
 end
 
+-- Get current layer from Nova World Buffs addon
+function Grouper:GetCurrentLayer()
+    -- Check if Nova World Buffs is installed and has layer info
+    if NWB and NWB.currentLayer then
+        return NWB.currentLayer
+    end
+    return nil
+end
+
 -- Mark boss as killed
 function Grouper:MarkBossKilled(bossName)
     if not bossName or bossName == "" then
         return
     end
-    GrouperDB.bossKills[bossName] = time()
-    print("|cff00ff00[Grouper]|r Marked " .. bossName .. " as killed")
+
+    local layer = self:GetCurrentLayer()
+    local killData = {
+        timestamp = time(),
+        layer = layer
+    }
+
+    -- Initialize kills table for this boss if needed
+    if not GrouperDB.bossKills[bossName] then
+        GrouperDB.bossKills[bossName] = {}
+    end
+
+    -- If old format (just a timestamp), convert it
+    if type(GrouperDB.bossKills[bossName]) == "number" then
+        GrouperDB.bossKills[bossName] = {
+            {
+                timestamp = GrouperDB.bossKills[bossName],
+                layer = nil
+            }
+        }
+    end
+
+    -- Add new kill
+    table.insert(GrouperDB.bossKills[bossName], killData)
+
+    local layerText = layer and (" on Layer " .. layer) or ""
+    print("|cff00ff00[Grouper]|r Marked " .. bossName .. " as killed" .. layerText)
     if configFrame then
         self:UpdateConfigUI()
     end
 end
 
+-- Get all kills for a boss
+function Grouper:GetBossKills(bossName)
+    if not bossName or not GrouperDB.bossKills[bossName] then
+        return {}
+    end
+
+    local kills = GrouperDB.bossKills[bossName]
+
+    -- Handle old format (single timestamp)
+    if type(kills) == "number" then
+        return {{timestamp = kills, layer = nil}}
+    end
+
+    return kills
+end
+
 -- Get time since last kill
 function Grouper:GetTimeSinceKill(bossName)
-    if not bossName or not GrouperDB.bossKills[bossName] then
+    local kills = self:GetBossKills(bossName)
+    if #kills == 0 then
         return nil
     end
-    return time() - GrouperDB.bossKills[bossName]
+
+    -- Find most recent kill
+    local mostRecent = kills[1].timestamp
+    for i = 2, #kills do
+        if kills[i].timestamp > mostRecent then
+            mostRecent = kills[i].timestamp
+        end
+    end
+
+    return time() - mostRecent
 end
 
 -- Format time since kill for display
 function Grouper:FormatTimeSinceKill(bossName)
-    local timeSince = self:GetTimeSinceKill(bossName)
-    if not timeSince then
+    local kills = self:GetBossKills(bossName)
+    if #kills == 0 then
         return "Never killed"
     end
 
-    local days = math.floor(timeSince / 86400)
-    local hours = math.floor((timeSince % 86400) / 3600)
-
-    if days > 0 then
-        return string.format("Killed %d day%s ago", days, days > 1 and "s" or "")
-    elseif hours > 0 then
-        return string.format("Killed %d hour%s ago", hours, hours > 1 and "s" or "")
-    else
-        return "Killed <1 hour ago"
+    -- Sort kills by timestamp (most recent first)
+    local sortedKills = {}
+    for i, kill in ipairs(kills) do
+        sortedKills[i] = kill
     end
+    table.sort(sortedKills, function(a, b) return a.timestamp > b.timestamp end)
+
+    -- Build display text with recent kills
+    local lines = {}
+    local now = time()
+
+    for i = 1, math.min(3, #sortedKills) do
+        local kill = sortedKills[i]
+        local timeSince = now - kill.timestamp
+        local days = math.floor(timeSince / 86400)
+        local hours = math.floor((timeSince % 86400) / 3600)
+
+        local timeText
+        if days > 0 then
+            timeText = string.format("%dd %dh ago", days, hours)
+        elseif hours > 0 then
+            timeText = string.format("%dh ago", hours)
+        else
+            timeText = "<1h ago"
+        end
+
+        local layerText = kill.layer and (" L" .. kill.layer) or ""
+        table.insert(lines, timeText .. layerText)
+    end
+
+    return table.concat(lines, ", ")
 end
 
 -- Get instance lockout info
@@ -862,8 +943,8 @@ function Grouper:CreateConfigUI()
     configFrame.title:SetPoint("LEFT", configFrame.TitleBg, "LEFT", 5, 0)
     configFrame.title:SetText("Grouper")
 
-    -- Selected boss/dungeon
-    configFrame.selectedBoss = "Azuregos"
+    -- Selected boss/dungeon (restore last selection or default to Azuregos)
+    configFrame.selectedBoss = GrouperDB.lastSelectedBoss or "Azuregos"
 
     local yOffset = -35
 
@@ -880,7 +961,10 @@ function Grouper:CreateConfigUI()
     -- Populate dropdown
     local function OnClick(self)
         configFrame.selectedBoss = self.value
+        UIDropDownMenu_SetSelectedValue(dropdown, self.value)
         UIDropDownMenu_SetText(dropdown, self.value)
+        -- Save selection for persistence
+        GrouperDB.lastSelectedBoss = self.value
         Grouper:UpdateConfigUI()
         CloseDropDownMenus()
     end
@@ -1155,7 +1239,8 @@ function Grouper:UpdateConfigUI()
     -- Update HR input
     configFrame.hrInput:SetText(config.hr or "")
 
-    -- Update dropdown text
+    -- Update dropdown selection and text
+    UIDropDownMenu_SetSelectedValue(GrouperBossDropdown, configFrame.selectedBoss)
     UIDropDownMenu_SetText(GrouperBossDropdown, configFrame.selectedBoss)
 
     -- Update tracking label based on category

@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Boss/dungeon selection persistence - UI now remembers your last selected boss/dungeon
+- Layer tracking for world boss kills
+  - Integrates with Nova World Buffs to detect current layer
+  - Tracks multiple kills per boss with layer information
+  - UI shows up to 3 recent kills with layer numbers (e.g., "2d 5h ago L1, 1d 3h ago L2")
+  - Backwards compatible with old kill tracking format
 - `/grouper about` command to display addon and author information
 - Draggable spam buttons with saved positions
   - LFG, Trade, and Stop Recruiting buttons can now be repositioned
@@ -44,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/grouper ui` still works for backward compatibility
 
 ### Fixed
+- Boss/dungeon dropdown now properly maintains selection state (fixes blank/greyed out dropdown issue)
 - Interval validation now properly accepts values as you type
 - Cooldown changes are now applied immediately and saved correctly
 - Stop Recruiting button crash when GetLootMethod API is unavailable (added safety check)
