@@ -5,9 +5,9 @@ Grouper.version = "1.0.12"
 -- Default settings
 local defaults = {
     raidSize = 25,
-    spamInterval = 300, -- 5 minutes default
-    tradeInterval = 300,
-    lfgInterval = 300,
+    spamInterval = 60, -- 60 seconds default
+    tradeInterval = 60,
+    lfgInterval = 60,
     bosses = {
         -- World Bosses
         ["Azuregos"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
@@ -274,8 +274,17 @@ function Grouper:GenerateMessage()
                 ["DRUID"] = "Druids"
             }
 
+            -- Get player faction for pre-TBC class filtering
+            local playerFaction = UnitFactionGroup("player")
+
             for class, name in pairs(classNames) do
-                if not classCounts[class] or classCounts[class] == 0 then
+                -- Skip Paladins for Horde (pre-TBC)
+                if class == "PALADIN" and playerFaction == "Horde" then
+                    -- Skip
+                -- Skip Shamans for Alliance (pre-TBC)
+                elseif class == "SHAMAN" and playerFaction == "Alliance" then
+                    -- Skip
+                elseif not classCounts[class] or classCounts[class] == 0 then
                     table.insert(classNeeds, name)
                 end
             end
@@ -787,14 +796,24 @@ function Grouper:CreateConfigUI()
     tradeInput:SetSize(80, 20)
     tradeInput:SetAutoFocus(false)
     tradeInput:SetNumeric(true)
-    tradeInput:SetText(tostring(GrouperDB.tradeInterval or 300))
+    tradeInput:SetText(tostring(GrouperDB.tradeInterval or 60))
     tradeInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     tradeInput:SetScript("OnEnterPressed", function(self)
         local value = tonumber(self:GetText())
         if value and value > 0 then
             GrouperDB.tradeInterval = value
+            print("|cff00ff00[Grouper]|r Trade interval set to " .. value .. " seconds")
+        else
+            print("|cffff0000[Grouper]|r Invalid interval (must be > 0)")
+            self:SetText(tostring(GrouperDB.tradeInterval or 60))
         end
         self:ClearFocus()
+    end)
+    tradeInput:SetScript("OnTextChanged", function(self)
+        local value = tonumber(self:GetText())
+        if value and value > 0 then
+            GrouperDB.tradeInterval = value
+        end
     end)
 
     yOffset = yOffset - 50
@@ -809,14 +828,24 @@ function Grouper:CreateConfigUI()
     lfgInput:SetSize(80, 20)
     lfgInput:SetAutoFocus(false)
     lfgInput:SetNumeric(true)
-    lfgInput:SetText(tostring(GrouperDB.lfgInterval or 300))
+    lfgInput:SetText(tostring(GrouperDB.lfgInterval or 60))
     lfgInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     lfgInput:SetScript("OnEnterPressed", function(self)
         local value = tonumber(self:GetText())
         if value and value > 0 then
             GrouperDB.lfgInterval = value
+            print("|cff00ff00[Grouper]|r LFG interval set to " .. value .. " seconds")
+        else
+            print("|cffff0000[Grouper]|r Invalid interval (must be > 0)")
+            self:SetText(tostring(GrouperDB.lfgInterval or 60))
         end
         self:ClearFocus()
+    end)
+    lfgInput:SetScript("OnTextChanged", function(self)
+        local value = tonumber(self:GetText())
+        if value and value > 0 then
+            GrouperDB.lfgInterval = value
+        end
     end)
 
     yOffset = yOffset - 60
