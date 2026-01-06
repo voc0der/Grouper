@@ -1,67 +1,59 @@
-name: Auto Tag
+name: Tag from TOC version
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tag-from-toc
+  cancel-in-progress: true
 
 jobs:
   tag:
+    # Don't run on bot pushes (safety)
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
-      - name: Checkout code
+      - name: Checkout (use PAT so tag push triggers other workflows)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
 
-      - name: Calculate next version
-        id: get_version
+      - name: Read version from TOC
+        id: ver
+        shell: bash
         run: |
-          # Get the latest tag, or use 1.0.19 if no tags exist
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.19")
-          VERSION=${LATEST_TAG#v}
+          set -euo pipefail
+          v="$(grep -E '^## Version:' Grouper.toc | sed -E 's/^## Version:\s*//')"
+          if [[ -z "$v" ]]; then
+            echo "Could not find ## Version: in Grouper.toc" >&2
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "tag=v$v" >> "$GITHUB_OUTPUT"
 
-          # Extract version numbers
-          MAJOR=$(echo $VERSION | cut -d. -f1)
-          MINOR=$(echo $VERSION | cut -d. -f2)
-          PATCH=$(echo $VERSION | cut -d. -f3)
-
-          # Increment patch version
-          NEW_PATCH=$((PATCH + 1))
-          NEW_VERSION="${MAJOR}.${MINOR}.${NEW_PATCH}"
-          NEW_TAG="v${NEW_VERSION}"
-
-          # Check if new tag already exists
-          if git rev-parse "$NEW_TAG" >/dev/null 2>&1; then
-            echo "Tag $NEW_TAG already exists, skipping"
-            echo "skip=true" >> $GITHUB_OUTPUT
+      - name: Check if tag already exists
+        id: exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/${{ steps.ver.outputs.tag }}" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-            echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
-            echo "skip=false" >> $GITHUB_OUTPUT
-            echo "Creating new tag: $NEW_TAG"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Update version in files
-        if: steps.get_version.outputs.skip == 'false'
+      - name: Create + push tag
+        if: steps.exists.outputs.exists != 'true'
+        shell: bash
         run: |
-          sed -i "s/^## Version: .*/## Version: ${{ steps.get_version.outputs.version }}/" Grouper.toc
-          sed -i "s/Grouper.version = .*/Grouper.version = \"${{ steps.get_version.outputs.version }}\"/" Grouper.lua
-
-      - name: Commit version bump
-        if: steps.get_version.outputs.skip == 'false'
-        run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Grouper.toc Grouper.lua
-          git diff --staged --quiet || git commit -m "Bump version to ${{ steps.get_version.outputs.version }}"
-          git push
-
-      - name: Create and push tag
-        if: steps.get_version.outputs.skip == 'false'
-        run: |
-          git tag ${{ steps.get_version.outputs.tag }}
-          git push origin ${{ steps.get_version.outputs.tag }}
+          git tag -a "${{ steps.ver.outputs.tag }}" -m "${{ steps.ver.outputs.tag }}"
+          git push origin "${{ steps.ver.outputs.tag }}"
