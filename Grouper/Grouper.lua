@@ -49,6 +49,13 @@ local bossCategories = {
     "5-Man Dungeon"
 }
 
+-- LFG Activity ID mappings (for Group Finder)
+-- These IDs may vary by version - will use "Other" category if specific IDs don't work
+local lfgActivityMap = {
+    -- If specific activity IDs are available, they can be added here
+    -- For now, we'll use the generic approach with activity search
+}
+
 -- Active session data
 local activeSession = {
     active = false,
@@ -58,6 +65,7 @@ local activeSession = {
     lfgTimer = nil,
     tradeNextSpam = 0,
     lfgNextSpam = 0,
+    lfgListingID = nil,
 }
 
 -- Major cities for Trade chat
@@ -333,6 +341,95 @@ function Grouper:SendToChannel(channel)
     end
 end
 
+-- Find appropriate LFG activity ID for boss/dungeon
+function Grouper:FindLFGActivity(bossName)
+    -- Check if C_LFGList API is available (Anniversary/Season of Discovery)
+    if not C_LFGList or not C_LFGList.GetAvailableActivities then
+        return nil
+    end
+
+    -- Try to find a matching activity
+    -- This is a simplified approach - activity IDs can be added to lfgActivityMap for specific matches
+    local categoryID = 2 -- Dungeons category, can be adjusted
+    local activities = C_LFGList.GetAvailableActivities(categoryID)
+
+    if activities then
+        for _, activityID in ipairs(activities) do
+            local activityInfo = C_LFGList.GetActivityInfoTable(activityID)
+            if activityInfo and activityInfo.fullName then
+                -- Try to match activity name with boss name
+                if string.find(string.lower(activityInfo.fullName), string.lower(bossName)) then
+                    return activityID
+                end
+            end
+        end
+    end
+
+    -- Fall back to "Other" category if available
+    -- Activity ID for "Other" varies, but typically around 1-50 range
+    return nil
+end
+
+-- Update or create LFG listing
+function Grouper:UpdateLFGListing()
+    -- Only proceed if C_LFGList is available
+    if not C_LFGList or not C_LFGList.CreateListing then
+        return
+    end
+
+    if not activeSession.active then
+        return
+    end
+
+    local msg = self:GenerateMessage()
+    local config = self:GetBossConfig(activeSession.boss)
+    local activityID = self:FindLFGActivity(activeSession.boss)
+
+    -- If we don't have a specific activity, try using a generic one
+    -- Many Classic versions support creating listings even without perfect activity match
+    if not activityID then
+        activityID = 1 -- Generic "Other" activity, may vary by version
+    end
+
+    if activeSession.lfgListingID then
+        -- Update existing listing
+        if C_LFGList.UpdateListing then
+            local success = pcall(function()
+                C_LFGList.UpdateListing(activeSession.lfgListingID, {
+                    name = msg,
+                    comment = msg,
+                    voiceChat = "",
+                    iLvl = 0,
+                    honorLevel = 0,
+                    isPrivate = false,
+                    isAutoAccept = false,
+                })
+            end)
+        end
+    else
+        -- Create new listing
+        local success, result = pcall(function()
+            return C_LFGList.CreateListing(activityID, msg, 0, 0, "", false, false, false)
+        end)
+
+        if success and result then
+            activeSession.lfgListingID = result
+            print("|cff00ff00[Grouper]|r Created Group Finder listing")
+        end
+    end
+end
+
+-- Remove LFG listing
+function Grouper:RemoveLFGListing()
+    if activeSession.lfgListingID and C_LFGList and C_LFGList.RemoveListing then
+        pcall(function()
+            C_LFGList.RemoveListing(activeSession.lfgListingID)
+        end)
+        activeSession.lfgListingID = nil
+        print("|cff00ff00[Grouper]|r Removed Group Finder listing")
+    end
+end
+
 -- Create or update UI buttons
 function Grouper:CreateButtons()
     -- Stop button
@@ -428,6 +525,9 @@ function Grouper:UpdateButtons()
             print("|cff00ff00[Grouper]|r Raid is full! (" .. numMembers .. "/" .. targetSize .. ")")
         end
     end
+
+    -- Update Group Finder listing
+    self:UpdateLFGListing()
 end
 
 -- Start recruiting session
@@ -478,6 +578,9 @@ function Grouper:StopSession()
         self:CancelTimer(activeSession.updateTimer)
         activeSession.updateTimer = nil
     end
+
+    -- Remove Group Finder listing
+    self:RemoveLFGListing()
 
     if stopButton then stopButton:Hide() end
     if tradeButton then tradeButton:Hide() end

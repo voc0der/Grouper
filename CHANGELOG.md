@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Automatic Group Finder (LFG) integration for Anniversary/Season of Discovery
+  - Automatically creates and updates Group Finder listing when recruiting
+  - Listing updates in real-time as group fills
+  - Automatically removed when stopping recruitment
 - MIT License for open source distribution
 - Stop Recruiting button above Trade/LFG buttons for easy access to stop recruiting
 - Faction-based class filtering (Paladins excluded from Horde, Shamans excluded from Alliance for pre-TBC)
