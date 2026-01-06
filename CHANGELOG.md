@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Player count now hidden in messages when group is under 20% filled (e.g., "LFM Azuregos - Need all")
 - Removed redundant "/grouper off" message when raid is full (Stop button is now visible)
 - Minimap icon changed from dragon head to fish (Raw Mightfish) to better represent "Grouper"
+- `/grouper` now opens the UI by default (previously showed help)
+- `/grouper help` now shows help text (previously was `/grouper ui` for UI)
+- `/grouper ui` still works for backward compatibility
 
 ### Fixed
 - Interval validation now properly accepts values as you type

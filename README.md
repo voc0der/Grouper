@@ -4,7 +4,7 @@ WoW Classic addon for managing PUG groups for raids, dungeons, and world bosses.
 
 ## Features
 
-- **Graphical UI** - Full configuration interface accessible via `/grouper ui`
+- **Graphical UI** - Full configuration interface accessible via `/grouper`
 - **40+ Dungeons & Raids** - Pre-configured for all Classic content from 5-mans to 40-man raids
 - **Smart Messaging** - Auto-generates recruitment messages based on your raid composition
 - **Minimap Button** - Quick access to configuration (draggable, can be hidden)
@@ -21,12 +21,22 @@ Or use CurseBreaker: `install https://github.com/voc0der/Grouper`
 
 Open the GUI:
 ```
-/grouper ui
+/grouper
 ```
 
 Select your boss/dungeon, configure settings, and click "Start Recruiting"!
 
 ## Chat Commands
+
+Open the configuration GUI:
+```
+/grouper
+```
+
+Get help:
+```
+/grouper help
+```
 
 Start recruiting (GUI recommended):
 ```

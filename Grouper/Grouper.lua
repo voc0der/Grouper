@@ -1207,14 +1207,18 @@ function Grouper:HandleCommand(input)
     end
 
     if #args == 0 then
-        self:ShowHelp()
+        self:ShowConfigUI()
         return
     end
 
     local cmd = string.lower(args[1])
 
-    -- /grouper ui
-    if cmd == "ui" or cmd == "config" or cmd == "gui" then
+    -- /grouper help
+    if cmd == "help" or cmd == "?" then
+        self:ShowHelp()
+
+    -- /grouper ui (kept for compatibility)
+    elseif cmd == "ui" or cmd == "config" or cmd == "gui" then
         self:ShowConfigUI()
 
     -- /grouper minimap
@@ -1318,7 +1322,8 @@ end
 
 function Grouper:ShowHelp()
     print("|cff00ff00=== Grouper v" .. self.version .. " ===|r")
-    print("|cffffcc00/grouper ui|r - Open configuration GUI")
+    print("|cffffcc00/grouper|r - Open configuration GUI")
+    print("|cffffcc00/grouper help|r - Show this help")
     print("|cffffcc00/grouper minimap|r - Toggle minimap button")
     print("|cffffcc00/grouper <boss> [hard reserve item]|r - Start recruiting")
     print("  Example: /grouper Azuregos Mature Blue Dragon Sinew")
