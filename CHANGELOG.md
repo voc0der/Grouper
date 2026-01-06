@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Four preview message examples including sub-20% case
 - CHANGELOG.md for tracking version history
 - Release documentation and templates
+- Boss kill tracking feature
+  - Displays time since last kill (e.g., "Killed 16 days ago") on right side of UI
+  - "Mark as Killed" button to record boss kills
+  - Tracks kill timestamps for all bosses/dungeons
+  - Helps remember world boss respawn timers
 
 ### Changed
 - Default spam intervals reduced from 300 to 60 seconds for Trade and LFG channels

@@ -107,6 +107,10 @@ function Grouper:InitDB()
         GrouperDB.bosses = {}
     end
 
+    if not GrouperDB.bossKills then
+        GrouperDB.bossKills = {}
+    end
+
     if GrouperDB.minimapButton == nil then
         GrouperDB.minimapButton = {
             show = true,
@@ -156,6 +160,45 @@ function Grouper:GetBossConfig(bossName)
         category = "Custom"
     }
     return GrouperDB.bosses[bossName]
+end
+
+-- Mark boss as killed
+function Grouper:MarkBossKilled(bossName)
+    if not bossName or bossName == "" then
+        return
+    end
+    GrouperDB.bossKills[bossName] = time()
+    print("|cff00ff00[Grouper]|r Marked " .. bossName .. " as killed")
+    if configFrame then
+        self:UpdateConfigUI()
+    end
+end
+
+-- Get time since last kill
+function Grouper:GetTimeSinceKill(bossName)
+    if not bossName or not GrouperDB.bossKills[bossName] then
+        return nil
+    end
+    return time() - GrouperDB.bossKills[bossName]
+end
+
+-- Format time since kill for display
+function Grouper:FormatTimeSinceKill(bossName)
+    local timeSince = self:GetTimeSinceKill(bossName)
+    if not timeSince then
+        return "Never killed"
+    end
+
+    local days = math.floor(timeSince / 86400)
+    local hours = math.floor((timeSince % 86400) / 3600)
+
+    if days > 0 then
+        return string.format("Killed %d day%s ago", days, days > 1 and "s" or "")
+    elseif hours > 0 then
+        return string.format("Killed %d hour%s ago", hours, hours > 1 and "s" or "")
+    else
+        return "Killed <1 hour ago"
+    end
 end
 
 -- Check if in major city
@@ -813,6 +856,23 @@ function Grouper:CreateConfigUI()
     UIDropDownMenu_Initialize(dropdown, initialize)
     UIDropDownMenu_SetSelectedValue(dropdown, configFrame.selectedBoss)
 
+    -- Kill tracking label (right side)
+    local killLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    killLabel:SetPoint("TOPRIGHT", configFrame, "TOPRIGHT", -20, -35)
+    killLabel:SetText("Never killed")
+    killLabel:SetJustifyH("RIGHT")
+    configFrame.killLabel = killLabel
+
+    -- Mark as Killed button (right side, below label)
+    local killButton = CreateFrame("Button", "GrouperMarkKilledButton", configFrame, "UIPanelButtonTemplate")
+    killButton:SetSize(120, 25)
+    killButton:SetPoint("TOPRIGHT", killLabel, "BOTTOMRIGHT", 0, -5)
+    killButton:SetText("Mark as Killed")
+    killButton:SetScript("OnClick", function()
+        Grouper:MarkBossKilled(configFrame.selectedBoss)
+    end)
+    configFrame.killButton = killButton
+
     yOffset = yOffset - 60
 
     -- Raid Size Slider
@@ -1027,6 +1087,12 @@ function Grouper:UpdateConfigUI()
 
     -- Update dropdown text
     UIDropDownMenu_SetText(GrouperBossDropdown, configFrame.selectedBoss)
+
+    -- Update kill tracking label
+    if configFrame.killLabel then
+        local timeText = self:FormatTimeSinceKill(configFrame.selectedBoss)
+        configFrame.killLabel:SetText(timeText)
+    end
 end
 
 -- Show Preview Messages
