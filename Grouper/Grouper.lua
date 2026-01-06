@@ -627,7 +627,7 @@ function Grouper:CreateMinimapButton()
     local icon = minimapButton:CreateTexture(nil, "BACKGROUND")
     icon:SetSize(20, 20)
     icon:SetPoint("CENTER", 0, 1)
-    icon:SetTexture("Interface\\Icons\\INV_Misc_Head_Dragon_01")
+    icon:SetTexture("Interface\\Icons\\INV_Misc_Fish_27")
     minimapButton.icon = icon
 
     -- Border

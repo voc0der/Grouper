@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default spam intervals reduced from 300 to 60 seconds for Trade and LFG channels
 - Player count now hidden in messages when group is under 20% filled (e.g., "LFM Azuregos - Need all")
 - Removed redundant "/grouper off" message when raid is full (Stop button is now visible)
+- Minimap icon changed from dragon head to fish (Raw Mightfish) to better represent "Grouper"
 
 ### Fixed
 - Interval validation now properly accepts values as you type
