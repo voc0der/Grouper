@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `/grouper about` command to display addon and author information
 - Draggable spam buttons with saved positions
   - LFG, Trade, and Stop Recruiting buttons can now be repositioned
   - Button positions are saved and restored between sessions
