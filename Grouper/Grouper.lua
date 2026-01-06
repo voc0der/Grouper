@@ -130,6 +130,10 @@ end
 
 -- Get boss config (merge saved with defaults)
 function Grouper:GetBossConfig(bossName)
+    if not bossName or bossName == "" then
+        return nil
+    end
+
     -- Try exact match first
     if GrouperDB.bosses[bossName] then
         return GrouperDB.bosses[bossName]
@@ -993,11 +997,11 @@ function Grouper:CreateConfigUI()
         configFrame:Hide()
     end)
 
-    local stopButton = CreateFrame("Button", "GrouperStopButton", configFrame, "UIPanelButtonTemplate")
-    stopButton:SetSize(140, 30)
-    stopButton:SetPoint("BOTTOMRIGHT", configFrame, "BOTTOMRIGHT", -20, 20)
-    stopButton:SetText("Stop Recruiting")
-    stopButton:SetScript("OnClick", function()
+    local configStopButton = CreateFrame("Button", "GrouperConfigStopButton", configFrame, "UIPanelButtonTemplate")
+    configStopButton:SetSize(140, 30)
+    configStopButton:SetPoint("BOTTOMRIGHT", configFrame, "BOTTOMRIGHT", -20, 20)
+    configStopButton:SetText("Stop Recruiting")
+    configStopButton:SetScript("OnClick", function()
         Grouper:StopSession()
     end)
 
