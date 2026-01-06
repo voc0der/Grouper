@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stop Recruiting button crash when GetLootMethod API is unavailable (added safety check)
 - Global variable shadowing issue with config frame stop button (renamed to configStopButton)
 - GetBossConfig now safely handles nil boss names to prevent errors
+- Group Finder listing now only created on user-initiated actions (fixes "protected function" error)
 
 ## [1.0.12] - Previous Release
 

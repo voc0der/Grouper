@@ -529,9 +529,6 @@ function Grouper:UpdateButtons()
             print("|cff00ff00[Grouper]|r Raid is full! (" .. numMembers .. "/" .. targetSize .. ")")
         end
     end
-
-    -- Update Group Finder listing
-    self:UpdateLFGListing()
 end
 
 -- Start recruiting session
@@ -554,6 +551,9 @@ function Grouper:StartSession(boss, hrItem)
 
     self:CreateButtons()
     self:UpdateButtons()
+
+    -- Create Group Finder listing (only on user-initiated start)
+    self:UpdateLFGListing()
 
     -- Start update timer
     if not activeSession.updateTimer then
