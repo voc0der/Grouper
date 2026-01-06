@@ -17,16 +17,18 @@ Copy `Grouper` folder to `World of Warcraft/_classic_/Interface/AddOns/`
 
 Or use CurseBreaker: `install https://github.com/voc0der/Grouper`
 
+On Curse as `Grouper-Classic`.
+
 ## Quick Start
 
-Open the GUI:
+Click minimap icon to open the GUI, or type:
 ```
 /grouper
 ```
 
-Select your boss/dungeon, configure settings, and click "Start Recruiting"!
+Select your boss/dungeon, configure settings, and click "Start Recruiting".
 
-## Chat Commands
+## Chat Commands (Optional)
 
 Open the configuration GUI:
 ```
@@ -63,11 +65,3 @@ Advanced settings (or use the GUI):
 /grouper set tradeinterval 300
 /grouper set lfginterval 300
 ```
-
-## Supported Content
-
-**World Bosses:** Azuregos, Lord Kazzak, Emeriss, Lethon, Taerar, Ysondre
-**40-Man Raids:** Molten Core, BWL, AQ40, Naxxramas
-**20-Man Raids:** Zul'Gurub, AQ20
-**10-Man Raids:** Onyxia
-**5-Man Dungeons:** Stratholme, Scholomance, UBRS, LBRS, Dire Maul, BRD
