@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.26"
+Grouper.version = "1.0.27"
 
 -- Default settings
 local defaults = {
@@ -340,6 +340,16 @@ function Grouper:CreateKillLogPopup()
     killLogFrame:SetScript("OnDragStart", killLogFrame.StartMoving)
     killLogFrame:SetScript("OnDragStop", killLogFrame.StopMovingOrSizing)
     killLogFrame:SetFrameStrata("DIALOG")
+    killLogFrame:SetFrameLevel(100)
+
+    -- Raise frame when shown or clicked
+    killLogFrame:SetScript("OnShow", function(self)
+        self:Raise()
+    end)
+    killLogFrame:SetScript("OnMouseDown", function(self)
+        self:Raise()
+    end)
+
     killLogFrame.title = killLogFrame:CreateFontString(nil, "OVERLAY")
     killLogFrame.title:SetFontObject("GameFontHighlight")
     killLogFrame.title:SetPoint("LEFT", killLogFrame.TitleBg, "LEFT", 5, 0)
@@ -1191,6 +1201,16 @@ function Grouper:CreateConfigUI()
     configFrame:SetScript("OnDragStart", configFrame.StartMoving)
     configFrame:SetScript("OnDragStop", configFrame.StopMovingOrSizing)
     configFrame:SetFrameStrata("DIALOG")
+    configFrame:SetFrameLevel(100)
+
+    -- Raise frame when shown or clicked
+    configFrame:SetScript("OnShow", function(self)
+        self:Raise()
+    end)
+    configFrame:SetScript("OnMouseDown", function(self)
+        self:Raise()
+    end)
+
     configFrame.title = configFrame:CreateFontString(nil, "OVERLAY")
     configFrame.title:SetFontObject("GameFontHighlight")
     configFrame.title:SetPoint("LEFT", configFrame.TitleBg, "LEFT", 5, 0)
