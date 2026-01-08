@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.30"
+Grouper.version = "1.0.31"
 
 -- Default settings
 local defaults = {
@@ -11,33 +11,33 @@ local defaults = {
     generalInterval = 60,
     bosses = {
         -- World Bosses
-        ["Azuregos"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
-        ["Lord Kazzak"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
-        ["Emeriss"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
-        ["Lethon"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
-        ["Taerar"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
-        ["Ysondre"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
+        ["Azuregos"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+        ["Lord Kazzak"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+        ["Emeriss"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+        ["Lethon"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+        ["Taerar"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+        ["Ysondre"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
 
         -- 40-Man Raids
-        ["Molten Core"] = { tanks = 3, healers = 8, hr = nil, size = 40, category = "40-Man Raid" },
-        ["Blackwing Lair"] = { tanks = 3, healers = 8, hr = nil, size = 40, category = "40-Man Raid" },
-        ["Ahn'Qiraj (AQ40)"] = { tanks = 3, healers = 8, hr = nil, size = 40, category = "40-Man Raid" },
-        ["Naxxramas"] = { tanks = 4, healers = 10, hr = nil, size = 40, category = "40-Man Raid" },
+        ["Molten Core"] = { tanks = 3, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
+        ["Blackwing Lair"] = { tanks = 3, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
+        ["Ahn'Qiraj (AQ40)"] = { tanks = 3, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
+        ["Naxxramas"] = { tanks = 4, healers = 10, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
 
         -- 20-Man Raids
-        ["Zul'Gurub"] = { tanks = 2, healers = 5, hr = nil, size = 20, category = "20-Man Raid" },
-        ["Ruins of Ahn'Qiraj (AQ20)"] = { tanks = 2, healers = 4, hr = nil, size = 20, category = "20-Man Raid" },
+        ["Zul'Gurub"] = { tanks = 2, healers = 5, hr = nil, custom = nil, size = 20, category = "20-Man Raid" },
+        ["Ruins of Ahn'Qiraj (AQ20)"] = { tanks = 2, healers = 4, hr = nil, custom = nil, size = 20, category = "20-Man Raid" },
 
         -- 10-Man Raids
-        ["Onyxia's Lair"] = { tanks = 2, healers = 3, hr = nil, size = 10, category = "10-Man Raid" },
+        ["Onyxia's Lair"] = { tanks = 2, healers = 3, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
 
         -- 5-Man Dungeons
-        ["Stratholme"] = { tanks = 1, healers = 1, hr = nil, size = 5, category = "5-Man Dungeon" },
-        ["Scholomance"] = { tanks = 1, healers = 1, hr = nil, size = 5, category = "5-Man Dungeon" },
-        ["Upper Blackrock Spire"] = { tanks = 1, healers = 1, hr = nil, size = 5, category = "5-Man Dungeon" },
-        ["Lower Blackrock Spire"] = { tanks = 1, healers = 1, hr = nil, size = 5, category = "5-Man Dungeon" },
-        ["Dire Maul"] = { tanks = 1, healers = 1, hr = nil, size = 5, category = "5-Man Dungeon" },
-        ["Blackrock Depths"] = { tanks = 1, healers = 1, hr = nil, size = 5, category = "5-Man Dungeon" },
+        ["Stratholme"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+        ["Scholomance"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+        ["Upper Blackrock Spire"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+        ["Lower Blackrock Spire"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+        ["Dire Maul"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+        ["Blackrock Depths"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
     }
 }
 
@@ -172,9 +172,15 @@ function Grouper:InitDB()
                 tanks = config.tanks,
                 healers = config.healers,
                 hr = config.hr,
+                custom = config.custom,
                 size = config.size,
                 category = config.category
             }
+        else
+            -- Ensure custom field exists on existing boss configs
+            if GrouperDB.bosses[boss].custom == nil then
+                GrouperDB.bosses[boss].custom = config.custom
+            end
         end
     end
 end
@@ -850,6 +856,12 @@ function Grouper:GenerateMessage()
     local hrItem = activeSession.hr or config.hr
     if hrItem then
         msg = msg .. " - " .. hrItem .. " HR"
+    end
+
+    -- Add custom text at the end
+    local customText = config.custom
+    if customText and customText ~= "" then
+        msg = msg .. " - " .. customText
     end
 
     return msg, numRaid, raidSize
@@ -1535,6 +1547,27 @@ function Grouper:CreateConfigUI()
 
     yOffset = yOffset - 60
 
+    -- Custom Text Input
+    local customLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    customLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    customLabel:SetText("Custom Text:")
+
+    local customInput = CreateFrame("EditBox", "GrouperCustomInput", configFrame, "InputBoxTemplate")
+    customInput:SetPoint("TOPLEFT", customLabel, "BOTTOMLEFT", 5, -5)
+    customInput:SetSize(300, 20)
+    customInput:SetAutoFocus(false)
+    customInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    customInput:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    customInput:SetScript("OnTextChanged", function(self)
+        local config = Grouper:GetBossConfig(configFrame.selectedBoss)
+        local text = self:GetText()
+        config.custom = (text ~= "" and text) or nil
+    end)
+    ApplyElvUISkin(customInput, "editbox")
+    configFrame.customInput = customInput
+
+    yOffset = yOffset - 60
+
     -- Interval Settings
     local intervalLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     intervalLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
@@ -1690,6 +1723,9 @@ function Grouper:UpdateConfigUI()
 
     -- Update HR input
     configFrame.hrInput:SetText(config.hr or "")
+
+    -- Update custom text input
+    configFrame.customInput:SetText(config.custom or "")
 
     -- Update dropdown selection and text
     UIDropDownMenu_SetSelectedValue(GrouperBossDropdown, configFrame.selectedBoss)
