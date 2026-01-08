@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.33"
+Grouper.version = "1.0.34"
 
 -- Default settings
 local defaults = {
@@ -160,6 +160,11 @@ function Grouper:InitDB()
     -- Initialize button container position
     if not GrouperDB.buttonContainerPosition then
         GrouperDB.buttonContainerPosition = {}
+    end
+
+    -- Initialize last boss setting
+    if not GrouperDB.lastBoss then
+        GrouperDB.lastBoss = nil
     end
 
     -- Ensure all default bosses exist
@@ -1142,6 +1147,9 @@ function Grouper:StartSession(boss, hrItem)
     activeSession.generalNextSpam = 0
     activeSession.hasShownFullWarning = false
 
+    -- Save last used boss
+    GrouperDB.lastBoss = boss
+
     print("|cff00ff00[Grouper]|r Started recruiting for " .. boss)
     if hrItem then
         print("|cff00ff00[Grouper]|r Hard Reserve: " .. hrItem)
@@ -1254,7 +1262,13 @@ function Grouper:CreateMinimapButton()
             if activeSession.active then
                 Grouper:StopSession()
             else
-                print("|cffff9900[Grouper]|r Use left-click to open config and start recruiting")
+                -- Try to start with last used boss
+                if GrouperDB.lastBoss then
+                    local config = Grouper:GetBossConfig(GrouperDB.lastBoss)
+                    Grouper:StartSession(GrouperDB.lastBoss, config.hr)
+                else
+                    print("|cffff9900[Grouper]|r No previous session found. Use left-click to open config and start recruiting.")
+                end
             end
         end
     end)
