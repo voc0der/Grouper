@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.31"
+Grouper.version = "1.0.32"
 
 -- Default settings
 local defaults = {
@@ -1335,7 +1335,7 @@ function Grouper:CreateConfigUI()
 
     -- Main frame
     configFrame = CreateFrame("Frame", "GrouperConfigFrame", UIParent, "BasicFrameTemplateWithInset")
-    configFrame:SetSize(500, 600)
+    configFrame:SetSize(500, 670)
     configFrame:SetPoint("CENTER")
     configFrame:SetMovable(true)
     configFrame:EnableMouse(true)
