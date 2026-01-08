@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.25"
+Grouper.version = "1.0.26"
 
 -- Default settings
 local defaults = {
@@ -8,6 +8,7 @@ local defaults = {
     spamInterval = 60, -- 60 seconds default
     tradeInterval = 60,
     lfgInterval = 60,
+    generalInterval = 60,
     bosses = {
         -- World Bosses
         ["Azuregos"] = { tanks = 1, healers = 6, hr = nil, size = 25, category = "World Boss" },
@@ -65,6 +66,7 @@ local activeSession = {
     lfgTimer = nil,
     tradeNextSpam = 0,
     lfgNextSpam = 0,
+    generalNextSpam = 0,
     lfgListingID = nil,
     hasShownFullWarning = false,
 }
@@ -82,7 +84,9 @@ local majorCities = {
 -- UI Frame references
 local tradeButton = nil
 local lfgButton = nil
+local generalButton = nil
 local stopButton = nil
+local buttonContainer = nil
 local configFrame = nil
 local minimapButton = nil
 local killLogFrame = nil
@@ -105,6 +109,10 @@ function Grouper:InitDB()
         GrouperDB.lfgInterval = defaults.lfgInterval
     end
 
+    if not GrouperDB.generalInterval then
+        GrouperDB.generalInterval = defaults.generalInterval
+    end
+
     if not GrouperDB.bosses then
         GrouperDB.bosses = {}
     end
@@ -120,9 +128,9 @@ function Grouper:InitDB()
         }
     end
 
-    -- Initialize button positions
-    if not GrouperDB.buttonPositions then
-        GrouperDB.buttonPositions = {}
+    -- Initialize button container position
+    if not GrouperDB.buttonContainerPosition then
+        GrouperDB.buttonContainerPosition = {}
     end
 
     -- Ensure all default bosses exist
@@ -813,94 +821,103 @@ function Grouper:RemoveLFGListing()
     end
 end
 
--- Make a button draggable
-function Grouper:MakeButtonDraggable(button, buttonName)
-    button:SetMovable(true)
-    button:EnableMouse(true)
-    button:RegisterForDrag("LeftButton")
-
-    button:SetScript("OnDragStart", function(self)
-        self:StartMoving()
-    end)
-
-    button:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        -- Save position
-        local point, _, relativePoint, xOfs, yOfs = self:GetPoint()
-        GrouperDB.buttonPositions[buttonName] = {
-            point = point,
-            relativePoint = relativePoint,
-            xOfs = xOfs,
-            yOfs = yOfs
-        }
-    end)
-end
-
--- Restore button position
-function Grouper:RestoreButtonPosition(button, buttonName, defaultX, defaultY)
-    local saved = GrouperDB.buttonPositions[buttonName]
-    if saved then
-        button:ClearAllPoints()
-        button:SetPoint(saved.point, UIParent, saved.relativePoint, saved.xOfs, saved.yOfs)
-    else
-        button:ClearAllPoints()
-        button:SetPoint("CENTER", UIParent, "CENTER", defaultX, defaultY)
-    end
-end
-
 -- Create or update UI buttons
 function Grouper:CreateButtons()
+    -- Create container frame if it doesn't exist
+    if not buttonContainer then
+        buttonContainer = CreateFrame("Frame", "GrouperButtonContainer", UIParent)
+        buttonContainer:SetSize(200, 210) -- Height for 4 buttons + spacing
+        buttonContainer:SetMovable(true)
+        buttonContainer:EnableMouse(true)
+        buttonContainer:RegisterForDrag("LeftButton")
+
+        -- Make container draggable
+        buttonContainer:SetScript("OnDragStart", function(self)
+            self:StartMoving()
+        end)
+
+        buttonContainer:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+            -- Save position
+            local point, _, relativePoint, xOfs, yOfs = self:GetPoint()
+            GrouperDB.buttonContainerPosition = {
+                point = point,
+                relativePoint = relativePoint,
+                xOfs = xOfs,
+                yOfs = yOfs
+            }
+        end)
+
+        -- Restore saved position or use default
+        local saved = GrouperDB.buttonContainerPosition
+        if saved and saved.point then
+            buttonContainer:SetPoint(saved.point, UIParent, saved.relativePoint, saved.xOfs, saved.yOfs)
+        else
+            buttonContainer:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        end
+    end
+
     -- Stop button
     if not stopButton then
-        stopButton = CreateFrame("Button", "GrouperStopButton", UIParent, "UIPanelButtonTemplate")
+        stopButton = CreateFrame("Button", "GrouperStopButton", buttonContainer, "UIPanelButtonTemplate")
         stopButton:SetSize(200, 40)
+        stopButton:SetPoint("TOP", buttonContainer, "TOP", 0, 0)
         stopButton:SetText("Stop Recruiting")
         stopButton:SetScript("OnClick", function()
             Grouper:StopSession()
         end)
-        Grouper:MakeButtonDraggable(stopButton, "stop")
     end
-    Grouper:RestoreButtonPosition(stopButton, "stop", 0, 100)
 
     -- Trade button
     if not tradeButton then
-        tradeButton = CreateFrame("Button", "GrouperTradeButton", UIParent, "UIPanelButtonTemplate")
+        tradeButton = CreateFrame("Button", "GrouperTradeButton", buttonContainer, "UIPanelButtonTemplate")
         tradeButton:SetSize(200, 40)
+        tradeButton:SetPoint("TOP", stopButton, "BOTTOM", 0, -10)
         tradeButton:SetText("Trade Chat (Ready)")
         tradeButton:SetScript("OnClick", function()
             Grouper:SendToChannel("Trade")
             activeSession.tradeNextSpam = time() + GrouperDB.tradeInterval
             Grouper:UpdateButtons()
         end)
-        Grouper:MakeButtonDraggable(tradeButton, "trade")
     end
-    Grouper:RestoreButtonPosition(tradeButton, "trade", 0, 50)
 
     -- LFG button
     if not lfgButton then
-        lfgButton = CreateFrame("Button", "GrouperLFGButton", UIParent, "UIPanelButtonTemplate")
+        lfgButton = CreateFrame("Button", "GrouperLFGButton", buttonContainer, "UIPanelButtonTemplate")
         lfgButton:SetSize(200, 40)
+        lfgButton:SetPoint("TOP", tradeButton, "BOTTOM", 0, -10)
         lfgButton:SetText("LFG Chat (Ready)")
         lfgButton:SetScript("OnClick", function()
             Grouper:SendToChannel("LookingForGroup")
             activeSession.lfgNextSpam = time() + GrouperDB.lfgInterval
             Grouper:UpdateButtons()
         end)
-        Grouper:MakeButtonDraggable(lfgButton, "lfg")
     end
-    Grouper:RestoreButtonPosition(lfgButton, "lfg", 0, 0)
 
+    -- General button
+    if not generalButton then
+        generalButton = CreateFrame("Button", "GrouperGeneralButton", buttonContainer, "UIPanelButtonTemplate")
+        generalButton:SetSize(200, 40)
+        generalButton:SetPoint("TOP", lfgButton, "BOTTOM", 0, -10)
+        generalButton:SetText("General Chat (Ready)")
+        generalButton:SetScript("OnClick", function()
+            Grouper:SendToChannel("General")
+            activeSession.generalNextSpam = time() + GrouperDB.generalInterval
+            Grouper:UpdateButtons()
+        end)
+    end
+
+    buttonContainer:Show()
     stopButton:Show()
     tradeButton:Show()
     lfgButton:Show()
+    generalButton:Show()
 end
 
 -- Update button states
 function Grouper:UpdateButtons()
     if not activeSession.active then
-        if stopButton then stopButton:Hide() end
-        if tradeButton then tradeButton:Hide() end
-        if lfgButton then lfgButton:Hide() end
+        if buttonContainer then buttonContainer:Hide() end
         return
     end
 
@@ -937,6 +954,18 @@ function Grouper:UpdateButtons()
         end
     end
 
+    -- Update General button
+    if generalButton then
+        local generalWait = activeSession.generalNextSpam - now
+        if generalWait > 0 then
+            generalButton:SetText(string.format("General Chat (%ds)", generalWait))
+            generalButton:Disable()
+        else
+            generalButton:SetText("General Chat (Ready)")
+            generalButton:Enable()
+        end
+    end
+
     -- Check if raid is full (only warn once)
     if IsInRaid() or IsInGroup() then
         local numMembers = GetNumGroupMembers()
@@ -961,6 +990,7 @@ function Grouper:StartSession(boss, hrItem)
     activeSession.hr = hrItem
     activeSession.tradeNextSpam = 0
     activeSession.lfgNextSpam = 0
+    activeSession.generalNextSpam = 0
     activeSession.hasShownFullWarning = false
 
     print("|cff00ff00[Grouper]|r Started recruiting for " .. boss)
@@ -1005,9 +1035,7 @@ function Grouper:StopSession()
     -- Remove Group Finder listing
     self:RemoveLFGListing()
 
-    if stopButton then stopButton:Hide() end
-    if tradeButton then tradeButton:Hide() end
-    if lfgButton then lfgButton:Hide() end
+    if buttonContainer then buttonContainer:Hide() end
 
     print("|cff00ff00[Grouper]|r Recruiting stopped.")
 end
@@ -1415,6 +1443,38 @@ function Grouper:CreateConfigUI()
         end
     end)
 
+    yOffset = yOffset - 50
+
+    -- General Interval
+    local generalLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    generalLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    generalLabel:SetText("General Chat:")
+
+    local generalInput = CreateFrame("EditBox", "GrouperGeneralIntervalInput", configFrame, "InputBoxTemplate")
+    generalInput:SetPoint("TOPLEFT", generalLabel, "BOTTOMLEFT", 5, -5)
+    generalInput:SetSize(80, 20)
+    generalInput:SetAutoFocus(false)
+    generalInput:SetNumeric(true)
+    generalInput:SetText(tostring(GrouperDB.generalInterval or 60))
+    generalInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    generalInput:SetScript("OnEnterPressed", function(self)
+        local value = tonumber(self:GetText())
+        if value and value > 0 then
+            GrouperDB.generalInterval = value
+            print("|cff00ff00[Grouper]|r General interval set to " .. value .. " seconds")
+        else
+            print("|cffff0000[Grouper]|r Invalid interval (must be > 0)")
+            self:SetText(tostring(GrouperDB.generalInterval or 60))
+        end
+        self:ClearFocus()
+    end)
+    generalInput:SetScript("OnTextChanged", function(self)
+        local value = tonumber(self:GetText())
+        if value and value > 0 then
+            GrouperDB.generalInterval = value
+        end
+    end)
+
     yOffset = yOffset - 60
 
     -- Preview Button
@@ -1662,6 +1722,15 @@ function Grouper:HandleCommand(input)
             else
                 print("|cffff0000[Grouper]|r Invalid interval")
             end
+
+        elseif option == "generalinterval" then
+            local interval = tonumber(args[3])
+            if interval and interval > 0 then
+                GrouperDB.generalInterval = interval
+                print("|cff00ff00[Grouper]|r General interval set to " .. interval .. " seconds")
+            else
+                print("|cffff0000[Grouper]|r Invalid interval")
+            end
         else
             print("|cffff0000[Grouper]|r Unknown setting: " .. option)
         end
@@ -1694,8 +1763,10 @@ function Grouper:ShowHelp()
     print("|cffffcc00/grouper set hr <boss> <item>|r - Set default HR for boss")
     print("|cffffcc00/grouper set tradeinterval <seconds>|r - Set Trade spam interval")
     print("|cffffcc00/grouper set lfginterval <seconds>|r - Set LFG spam interval")
+    print("|cffffcc00/grouper set generalinterval <seconds>|r - Set General spam interval")
     print(" ")
     print("Buttons appear when recruiting. Click to spam channels.")
+    print("Drag the buttons together as a unit to reposition them.")
     print("Trade chat only works in major cities.")
 end
 
