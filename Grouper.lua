@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.29"
+Grouper.version = "1.0.30"
 
 -- Default settings
 local defaults = {
@@ -518,8 +518,7 @@ function Grouper:ShowAddKillDialog(bossName)
         selectedLayer = 0
     end
 
-    -- Apply ElvUI skin to dropdown
-    ApplyElvUISkin(layerDropdown, "dropdown")
+    -- Note: ElvUI skin not applied to dropdown as it interferes with functionality
 
     -- Add button
     local addButton = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
@@ -1418,7 +1417,7 @@ function Grouper:CreateConfigUI()
 
     UIDropDownMenu_Initialize(dropdown, initialize)
     UIDropDownMenu_SetSelectedValue(dropdown, configFrame.selectedBoss)
-    ApplyElvUISkin(dropdown, "dropdown")
+    -- Note: ElvUI skin not applied to dropdown as it interferes with functionality
 
     -- Kill tracking label (right side)
     local killLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
