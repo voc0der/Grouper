@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.22"
+Grouper.version = "1.0.25"
 
 -- Default settings
 local defaults = {
@@ -66,6 +66,7 @@ local activeSession = {
     tradeNextSpam = 0,
     lfgNextSpam = 0,
     lfgListingID = nil,
+    hasShownFullWarning = false,
 }
 
 -- Major cities for Trade chat
@@ -84,6 +85,7 @@ local lfgButton = nil
 local stopButton = nil
 local configFrame = nil
 local minimapButton = nil
+local killLogFrame = nil
 
 -- Initialize saved variables
 function Grouper:InitDB()
@@ -312,6 +314,227 @@ function Grouper:GetInstanceLockout(bossName)
     end
 
     return "Not saved"
+end
+
+-- Create Kill Log Popup
+function Grouper:CreateKillLogPopup()
+    if killLogFrame then
+        return killLogFrame
+    end
+
+    -- Main frame
+    killLogFrame = CreateFrame("Frame", "GrouperKillLogFrame", UIParent, "BasicFrameTemplateWithInset")
+    killLogFrame:SetSize(500, 400)
+    killLogFrame:SetPoint("CENTER")
+    killLogFrame:SetMovable(true)
+    killLogFrame:EnableMouse(true)
+    killLogFrame:RegisterForDrag("LeftButton")
+    killLogFrame:SetScript("OnDragStart", killLogFrame.StartMoving)
+    killLogFrame:SetScript("OnDragStop", killLogFrame.StopMovingOrSizing)
+    killLogFrame:SetFrameStrata("DIALOG")
+    killLogFrame.title = killLogFrame:CreateFontString(nil, "OVERLAY")
+    killLogFrame.title:SetFontObject("GameFontHighlight")
+    killLogFrame.title:SetPoint("LEFT", killLogFrame.TitleBg, "LEFT", 5, 0)
+    killLogFrame.title:SetText("Kill Log")
+
+    -- Boss name label
+    local bossLabel = killLogFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    bossLabel:SetPoint("TOP", killLogFrame, "TOP", 0, -30)
+    bossLabel:SetText("Boss Name")
+    killLogFrame.bossLabel = bossLabel
+
+    -- Scroll frame for kill entries
+    local scrollFrame = CreateFrame("ScrollFrame", "GrouperKillLogScrollFrame", killLogFrame, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", killLogFrame, "TOPLEFT", 10, -60)
+    scrollFrame:SetPoint("BOTTOMRIGHT", killLogFrame, "BOTTOMRIGHT", -30, 50)
+
+    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+    scrollChild:SetSize(450, 1)
+    scrollFrame:SetScrollChild(scrollChild)
+    killLogFrame.scrollChild = scrollChild
+
+    -- Add Kill button
+    local addButton = CreateFrame("Button", "GrouperAddKillButton", killLogFrame, "UIPanelButtonTemplate")
+    addButton:SetSize(120, 30)
+    addButton:SetPoint("BOTTOMLEFT", killLogFrame, "BOTTOMLEFT", 20, 15)
+    addButton:SetText("Add Kill")
+    addButton:SetScript("OnClick", function()
+        Grouper:ShowAddKillDialog(killLogFrame.currentBoss)
+    end)
+
+    -- Close button (bottom right)
+    local closeButton = CreateFrame("Button", "GrouperKillLogCloseButton", killLogFrame, "UIPanelButtonTemplate")
+    closeButton:SetSize(80, 30)
+    closeButton:SetPoint("BOTTOMRIGHT", killLogFrame, "BOTTOMRIGHT", -20, 15)
+    closeButton:SetText("Close")
+    closeButton:SetScript("OnClick", function()
+        killLogFrame:Hide()
+    end)
+
+    killLogFrame:Hide()
+    return killLogFrame
+end
+
+-- Show Add Kill Dialog
+function Grouper:ShowAddKillDialog(bossName)
+    if not bossName then return end
+
+    -- Create a simple popup dialog
+    StaticPopupDialogs["GROUPER_ADD_KILL"] = {
+        text = "Add kill entry for " .. bossName .. "\n\nLayer (optional, leave blank if unknown):",
+        button1 = "Add",
+        button2 = "Cancel",
+        hasEditBox = true,
+        OnShow = function(self)
+            -- Try to auto-detect layer from Nova World Buffs
+            local currentLayer = Grouper:GetCurrentLayer()
+            if currentLayer then
+                self.editBox:SetText(tostring(currentLayer))
+            end
+        end,
+        OnAccept = function(self)
+            local layerText = self.editBox:GetText()
+            local layer = nil
+            if layerText and layerText ~= "" then
+                layer = tonumber(layerText)
+            end
+            Grouper:AddKillManually(bossName, layer)
+        end,
+        timeout = 0,
+        whileDead = true,
+        hideOnEscape = true,
+        preferredIndex = 3,
+    }
+    StaticPopup_Show("GROUPER_ADD_KILL")
+end
+
+-- Add kill manually
+function Grouper:AddKillManually(bossName, layer)
+    local killData = {
+        timestamp = time(),
+        layer = layer
+    }
+
+    -- Initialize kills table for this boss if needed
+    if not GrouperDB.bossKills[bossName] then
+        GrouperDB.bossKills[bossName] = {}
+    end
+
+    -- If old format (just a timestamp), convert it
+    if type(GrouperDB.bossKills[bossName]) == "number" then
+        GrouperDB.bossKills[bossName] = {
+            {
+                timestamp = GrouperDB.bossKills[bossName],
+                layer = nil
+            }
+        }
+    end
+
+    -- Add new kill
+    table.insert(GrouperDB.bossKills[bossName], killData)
+
+    local layerText = layer and (" on Layer " .. layer) or ""
+    print("|cff00ff00[Grouper]|r Added kill entry for " .. bossName .. layerText)
+
+    -- Refresh the kill log if it's open
+    if killLogFrame and killLogFrame:IsShown() and killLogFrame.currentBoss == bossName then
+        self:UpdateKillLog(bossName)
+    end
+
+    -- Update config UI if open
+    if configFrame then
+        self:UpdateConfigUI()
+    end
+end
+
+-- Update Kill Log display
+function Grouper:UpdateKillLog(bossName)
+    if not killLogFrame then
+        self:CreateKillLogPopup()
+    end
+
+    killLogFrame.currentBoss = bossName
+    killLogFrame.bossLabel:SetText(bossName)
+
+    -- Clear existing entries
+    local scrollChild = killLogFrame.scrollChild
+    for i, child in ipairs({scrollChild:GetChildren()}) do
+        child:Hide()
+        child:SetParent(nil)
+    end
+
+    -- Get kills
+    local kills = self:GetBossKills(bossName)
+
+    if #kills == 0 then
+        -- Show "No kills recorded" message
+        local noKillsText = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        noKillsText:SetPoint("TOP", scrollChild, "TOP", 0, -10)
+        noKillsText:SetText("No kills recorded for this boss")
+        noKillsText:SetTextColor(0.7, 0.7, 0.7)
+        return
+    end
+
+    -- Sort kills by timestamp (most recent first)
+    local sortedKills = {}
+    for i, kill in ipairs(kills) do
+        sortedKills[i] = kill
+    end
+    table.sort(sortedKills, function(a, b) return a.timestamp > b.timestamp end)
+
+    -- Create header
+    local headerFrame = CreateFrame("Frame", nil, scrollChild)
+    headerFrame:SetSize(450, 25)
+    headerFrame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, 0)
+
+    local dateHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    dateHeader:SetPoint("LEFT", headerFrame, "LEFT", 10, 0)
+    dateHeader:SetText("Date & Time")
+    dateHeader:SetTextColor(1, 0.82, 0)
+
+    local layerHeader = headerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    layerHeader:SetPoint("RIGHT", headerFrame, "RIGHT", -10, 0)
+    layerHeader:SetText("Layer")
+    layerHeader:SetTextColor(1, 0.82, 0)
+
+    -- Create kill entries
+    local yOffset = -30
+    for i, kill in ipairs(sortedKills) do
+        local entryFrame = CreateFrame("Frame", nil, scrollChild)
+        entryFrame:SetSize(450, 20)
+        entryFrame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, yOffset)
+
+        -- Date text
+        local dateText = entryFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        dateText:SetPoint("LEFT", entryFrame, "LEFT", 10, 0)
+        dateText:SetText(date("%Y-%m-%d %H:%M:%S", kill.timestamp))
+
+        -- Layer text
+        local layerText = entryFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        layerText:SetPoint("RIGHT", entryFrame, "RIGHT", -10, 0)
+        if kill.layer then
+            layerText:SetText("Layer " .. kill.layer)
+            layerText:SetTextColor(0.5, 1, 0.5)
+        else
+            layerText:SetText("Unknown")
+            layerText:SetTextColor(0.7, 0.7, 0.7)
+        end
+
+        yOffset = yOffset - 25
+    end
+
+    -- Update scroll child height
+    scrollChild:SetHeight(math.max(300, math.abs(yOffset) + 30))
+end
+
+-- Show Kill Log
+function Grouper:ShowKillLog(bossName)
+    if not killLogFrame then
+        self:CreateKillLogPopup()
+    end
+
+    self:UpdateKillLog(bossName)
+    killLogFrame:Show()
 end
 
 -- Check if in major city
@@ -714,13 +937,14 @@ function Grouper:UpdateButtons()
         end
     end
 
-    -- Check if raid is full
+    -- Check if raid is full (only warn once)
     if IsInRaid() or IsInGroup() then
         local numMembers = GetNumGroupMembers()
         local config = self:GetBossConfig(activeSession.boss)
         local targetSize = config.size or GrouperDB.raidSize or 25
-        if numMembers >= targetSize then
+        if numMembers >= targetSize and not activeSession.hasShownFullWarning then
             print("|cff00ff00[Grouper]|r Raid is full! (" .. numMembers .. "/" .. targetSize .. ")")
+            activeSession.hasShownFullWarning = true
         end
     end
 end
@@ -737,6 +961,7 @@ function Grouper:StartSession(boss, hrItem)
     activeSession.hr = hrItem
     activeSession.tradeNextSpam = 0
     activeSession.lfgNextSpam = 0
+    activeSession.hasShownFullWarning = false
 
     print("|cff00ff00[Grouper]|r Started recruiting for " .. boss)
     if hrItem then
@@ -1017,13 +1242,13 @@ function Grouper:CreateConfigUI()
     killLabel:SetJustifyH("RIGHT")
     configFrame.killLabel = killLabel
 
-    -- Mark as Killed button (right side, below label)
-    local killButton = CreateFrame("Button", "GrouperMarkKilledButton", configFrame, "UIPanelButtonTemplate")
+    -- Kill Log button (right side, below label)
+    local killButton = CreateFrame("Button", "GrouperKillLogButton", configFrame, "UIPanelButtonTemplate")
     killButton:SetSize(120, 25)
     killButton:SetPoint("TOPRIGHT", killLabel, "BOTTOMRIGHT", 0, -5)
-    killButton:SetText("Mark as Killed")
+    killButton:SetText("Kill Log")
     killButton:SetScript("OnClick", function()
-        Grouper:MarkBossKilled(configFrame.selectedBoss)
+        Grouper:ShowKillLog(configFrame.selectedBoss)
     end)
     configFrame.killButton = killButton
 
