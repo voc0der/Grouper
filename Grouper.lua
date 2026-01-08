@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.32"
+Grouper.version = "1.0.33"
 
 -- Default settings
 local defaults = {
@@ -20,6 +20,7 @@ local defaults = {
 
         -- 40-Man Raids
         ["Molten Core"] = { tanks = 3, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
+        ["Onyxia's Lair"] = { tanks = 2, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
         ["Blackwing Lair"] = { tanks = 3, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
         ["Ahn'Qiraj (AQ40)"] = { tanks = 3, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
         ["Naxxramas"] = { tanks = 4, healers = 10, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
@@ -27,9 +28,6 @@ local defaults = {
         -- 20-Man Raids
         ["Zul'Gurub"] = { tanks = 2, healers = 5, hr = nil, custom = nil, size = 20, category = "20-Man Raid" },
         ["Ruins of Ahn'Qiraj (AQ20)"] = { tanks = 2, healers = 4, hr = nil, custom = nil, size = 20, category = "20-Man Raid" },
-
-        -- 10-Man Raids
-        ["Onyxia's Lair"] = { tanks = 2, healers = 3, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
 
         -- 5-Man Dungeons
         ["Stratholme"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
@@ -46,7 +44,6 @@ local bossCategories = {
     "World Boss",
     "40-Man Raid",
     "20-Man Raid",
-    "10-Man Raid",
     "5-Man Dungeon"
 }
 
