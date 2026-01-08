@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.27"
+Grouper.version = "1.0.28"
 
 -- Default settings
 local defaults = {
@@ -90,6 +90,7 @@ local buttonContainer = nil
 local configFrame = nil
 local minimapButton = nil
 local killLogFrame = nil
+local topFrameLevel = 100 -- Track highest frame level for proper z-ordering
 
 -- Initialize saved variables
 function Grouper:InitDB()
@@ -339,16 +340,18 @@ function Grouper:CreateKillLogPopup()
     killLogFrame:RegisterForDrag("LeftButton")
     killLogFrame:SetScript("OnDragStart", killLogFrame.StartMoving)
     killLogFrame:SetScript("OnDragStop", killLogFrame.StopMovingOrSizing)
-    killLogFrame:SetFrameStrata("DIALOG")
-    killLogFrame:SetFrameLevel(100)
+    killLogFrame:SetFrameStrata("HIGH")
+    killLogFrame:SetToplevel(true)
 
-    -- Raise frame when shown or clicked
-    killLogFrame:SetScript("OnShow", function(self)
+    -- Raise frame when shown or clicked with proper z-ordering
+    local function raiseKillLogFrame(self)
+        topFrameLevel = topFrameLevel + 1
+        self:SetFrameLevel(topFrameLevel)
         self:Raise()
-    end)
-    killLogFrame:SetScript("OnMouseDown", function(self)
-        self:Raise()
-    end)
+    end
+
+    killLogFrame:SetScript("OnShow", raiseKillLogFrame)
+    killLogFrame:SetScript("OnMouseDown", raiseKillLogFrame)
 
     killLogFrame.title = killLogFrame:CreateFontString(nil, "OVERLAY")
     killLogFrame.title:SetFontObject("GameFontHighlight")
@@ -397,33 +400,110 @@ end
 function Grouper:ShowAddKillDialog(bossName)
     if not bossName then return end
 
-    -- Create a simple popup dialog
-    StaticPopupDialogs["GROUPER_ADD_KILL"] = {
-        text = "Add kill entry for " .. bossName .. "\n\nLayer (optional, leave blank if unknown):",
-        button1 = "Add",
-        button2 = "Cancel",
-        hasEditBox = true,
-        OnShow = function(self)
-            -- Try to auto-detect layer from Nova World Buffs
-            local currentLayer = Grouper:GetCurrentLayer()
-            if currentLayer then
-                self.editBox:SetText(tostring(currentLayer))
-            end
-        end,
-        OnAccept = function(self)
-            local layerText = self.editBox:GetText()
-            local layer = nil
-            if layerText and layerText ~= "" then
-                layer = tonumber(layerText)
-            end
-            Grouper:AddKillManually(bossName, layer)
-        end,
-        timeout = 0,
-        whileDead = true,
-        hideOnEscape = true,
-        preferredIndex = 3,
-    }
-    StaticPopup_Show("GROUPER_ADD_KILL")
+    -- Create dialog frame
+    local dialog = CreateFrame("Frame", "GrouperAddKillDialog", UIParent, "BasicFrameTemplateWithInset")
+    dialog:SetSize(350, 180)
+    dialog:SetPoint("CENTER")
+    dialog:SetFrameStrata("FULLSCREEN_DIALOG")
+    dialog:SetToplevel(true)
+    dialog:SetMovable(true)
+    dialog:EnableMouse(true)
+    dialog:RegisterForDrag("LeftButton")
+    dialog:SetScript("OnDragStart", dialog.StartMoving)
+    dialog:SetScript("OnDragStop", dialog.StopMovingOrSizing)
+
+    dialog.title = dialog:CreateFontString(nil, "OVERLAY")
+    dialog.title:SetFontObject("GameFontHighlight")
+    dialog.title:SetPoint("LEFT", dialog.TitleBg, "LEFT", 5, 0)
+    dialog.title:SetText("Add Kill Entry")
+
+    -- Boss name label
+    local bossLabel = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    bossLabel:SetPoint("TOP", dialog, "TOP", 0, -30)
+    bossLabel:SetText(bossName)
+
+    -- Layer label
+    local layerLabel = dialog:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    layerLabel:SetPoint("TOPLEFT", dialog, "TOPLEFT", 20, -65)
+    layerLabel:SetText("Layer:")
+
+    -- Layer dropdown
+    local layerDropdown = CreateFrame("Frame", "GrouperLayerDropdown", dialog, "UIDropDownMenuTemplate")
+    layerDropdown:SetPoint("TOPLEFT", layerLabel, "BOTTOMLEFT", -15, -5)
+    UIDropDownMenu_SetWidth(layerDropdown, 120)
+
+    local selectedLayer = nil
+
+    -- Try to auto-detect layer from Nova World Buffs
+    local currentLayer = Grouper:GetCurrentLayer()
+    if currentLayer then
+        selectedLayer = currentLayer
+    end
+
+    local function OnLayerClick(self)
+        selectedLayer = self.value
+        UIDropDownMenu_SetSelectedValue(layerDropdown, self.value)
+        UIDropDownMenu_SetText(layerDropdown, self.value == 0 and "Unknown" or "Layer " .. self.value)
+    end
+
+    local function InitializeLayerDropdown(self, level)
+        local info = UIDropDownMenu_CreateInfo()
+
+        -- Unknown option
+        info.text = "Unknown"
+        info.value = 0
+        info.func = OnLayerClick
+        UIDropDownMenu_AddButton(info)
+
+        -- Layers 1-10 (should cover most servers)
+        for i = 1, 10 do
+            info = UIDropDownMenu_CreateInfo()
+            info.text = "Layer " .. i
+            info.value = i
+            info.func = OnLayerClick
+            UIDropDownMenu_AddButton(info)
+        end
+    end
+
+    UIDropDownMenu_Initialize(layerDropdown, InitializeLayerDropdown)
+
+    if selectedLayer then
+        UIDropDownMenu_SetSelectedValue(layerDropdown, selectedLayer)
+        UIDropDownMenu_SetText(layerDropdown, "Layer " .. selectedLayer)
+    else
+        UIDropDownMenu_SetSelectedValue(layerDropdown, 0)
+        UIDropDownMenu_SetText(layerDropdown, "Unknown")
+        selectedLayer = 0
+    end
+
+    -- Add button
+    local addButton = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
+    addButton:SetSize(100, 30)
+    addButton:SetPoint("BOTTOMLEFT", dialog, "BOTTOMLEFT", 20, 15)
+    addButton:SetText("Add")
+    addButton:SetScript("OnClick", function()
+        local layer = selectedLayer == 0 and nil or selectedLayer
+        Grouper:AddKillManually(bossName, layer)
+        dialog:Hide()
+    end)
+
+    -- Cancel button
+    local cancelButton = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
+    cancelButton:SetSize(100, 30)
+    cancelButton:SetPoint("BOTTOMRIGHT", dialog, "BOTTOMRIGHT", -20, 15)
+    cancelButton:SetText("Cancel")
+    cancelButton:SetScript("OnClick", function()
+        dialog:Hide()
+    end)
+
+    -- Close on escape
+    dialog:SetScript("OnKeyDown", function(self, key)
+        if key == "ESCAPE" then
+            self:Hide()
+        end
+    end)
+
+    dialog:Show()
 end
 
 -- Add kill manually
@@ -1200,16 +1280,18 @@ function Grouper:CreateConfigUI()
     configFrame:RegisterForDrag("LeftButton")
     configFrame:SetScript("OnDragStart", configFrame.StartMoving)
     configFrame:SetScript("OnDragStop", configFrame.StopMovingOrSizing)
-    configFrame:SetFrameStrata("DIALOG")
-    configFrame:SetFrameLevel(100)
+    configFrame:SetFrameStrata("HIGH")
+    configFrame:SetToplevel(true)
 
-    -- Raise frame when shown or clicked
-    configFrame:SetScript("OnShow", function(self)
+    -- Raise frame when shown or clicked with proper z-ordering
+    local function raiseConfigFrame(self)
+        topFrameLevel = topFrameLevel + 1
+        self:SetFrameLevel(topFrameLevel)
         self:Raise()
-    end)
-    configFrame:SetScript("OnMouseDown", function(self)
-        self:Raise()
-    end)
+    end
+
+    configFrame:SetScript("OnShow", raiseConfigFrame)
+    configFrame:SetScript("OnMouseDown", raiseConfigFrame)
 
     configFrame.title = configFrame:CreateFontString(nil, "OVERLAY")
     configFrame.title:SetFontObject("GameFontHighlight")
