@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.28"
+Grouper.version = "1.0.29"
 
 -- Default settings
 local defaults = {
@@ -91,6 +91,37 @@ local configFrame = nil
 local minimapButton = nil
 local killLogFrame = nil
 local topFrameLevel = 100 -- Track highest frame level for proper z-ordering
+
+-- ElvUI Integration
+local E, L, V, P, G
+local S -- ElvUI Skins module
+
+-- Check if ElvUI is loaded
+local function IsElvUILoaded()
+    if not ElvUI then return false end
+    E, L, V, P, G = unpack(ElvUI)
+    S = E:GetModule('Skins', true)
+    return S ~= nil
+end
+
+-- Apply ElvUI skin to a frame
+local function ApplyElvUISkin(frame, frameType)
+    if not IsElvUILoaded() then return end
+
+    if frameType == "frame" then
+        S:HandleFrame(frame, true)
+    elseif frameType == "button" then
+        S:HandleButton(frame)
+    elseif frameType == "editbox" then
+        S:HandleEditBox(frame)
+    elseif frameType == "dropdown" then
+        S:HandleDropDownBox(frame)
+    elseif frameType == "slider" then
+        S:HandleSliderFrame(frame)
+    elseif frameType == "scrollbar" then
+        S:HandleScrollBar(frame)
+    end
+end
 
 -- Initialize saved variables
 function Grouper:InitDB()
@@ -353,6 +384,9 @@ function Grouper:CreateKillLogPopup()
     killLogFrame:SetScript("OnShow", raiseKillLogFrame)
     killLogFrame:SetScript("OnMouseDown", raiseKillLogFrame)
 
+    -- Apply ElvUI skin
+    ApplyElvUISkin(killLogFrame, "frame")
+
     killLogFrame.title = killLogFrame:CreateFontString(nil, "OVERLAY")
     killLogFrame.title:SetFontObject("GameFontHighlight")
     killLogFrame.title:SetPoint("LEFT", killLogFrame.TitleBg, "LEFT", 5, 0)
@@ -374,6 +408,9 @@ function Grouper:CreateKillLogPopup()
     scrollFrame:SetScrollChild(scrollChild)
     killLogFrame.scrollChild = scrollChild
 
+    -- Apply ElvUI skin to scroll bar
+    ApplyElvUISkin(scrollFrame.ScrollBar or scrollFrame, "scrollbar")
+
     -- Add Kill button
     local addButton = CreateFrame("Button", "GrouperAddKillButton", killLogFrame, "UIPanelButtonTemplate")
     addButton:SetSize(120, 30)
@@ -382,6 +419,7 @@ function Grouper:CreateKillLogPopup()
     addButton:SetScript("OnClick", function()
         Grouper:ShowAddKillDialog(killLogFrame.currentBoss)
     end)
+    ApplyElvUISkin(addButton, "button")
 
     -- Close button (bottom right)
     local closeButton = CreateFrame("Button", "GrouperKillLogCloseButton", killLogFrame, "UIPanelButtonTemplate")
@@ -391,6 +429,7 @@ function Grouper:CreateKillLogPopup()
     closeButton:SetScript("OnClick", function()
         killLogFrame:Hide()
     end)
+    ApplyElvUISkin(closeButton, "button")
 
     killLogFrame:Hide()
     return killLogFrame
@@ -411,6 +450,9 @@ function Grouper:ShowAddKillDialog(bossName)
     dialog:RegisterForDrag("LeftButton")
     dialog:SetScript("OnDragStart", dialog.StartMoving)
     dialog:SetScript("OnDragStop", dialog.StopMovingOrSizing)
+
+    -- Apply ElvUI skin
+    ApplyElvUISkin(dialog, "frame")
 
     dialog.title = dialog:CreateFontString(nil, "OVERLAY")
     dialog.title:SetFontObject("GameFontHighlight")
@@ -476,6 +518,9 @@ function Grouper:ShowAddKillDialog(bossName)
         selectedLayer = 0
     end
 
+    -- Apply ElvUI skin to dropdown
+    ApplyElvUISkin(layerDropdown, "dropdown")
+
     -- Add button
     local addButton = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
     addButton:SetSize(100, 30)
@@ -486,6 +531,7 @@ function Grouper:ShowAddKillDialog(bossName)
         Grouper:AddKillManually(bossName, layer)
         dialog:Hide()
     end)
+    ApplyElvUISkin(addButton, "button")
 
     -- Cancel button
     local cancelButton = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
@@ -495,6 +541,7 @@ function Grouper:ShowAddKillDialog(bossName)
     cancelButton:SetScript("OnClick", function()
         dialog:Hide()
     end)
+    ApplyElvUISkin(cancelButton, "button")
 
     -- Close on escape
     dialog:SetScript("OnKeyDown", function(self, key)
@@ -956,6 +1003,7 @@ function Grouper:CreateButtons()
         stopButton:SetScript("OnClick", function()
             Grouper:StopSession()
         end)
+        ApplyElvUISkin(stopButton, "button")
     end
 
     -- Trade button
@@ -969,6 +1017,7 @@ function Grouper:CreateButtons()
             activeSession.tradeNextSpam = time() + GrouperDB.tradeInterval
             Grouper:UpdateButtons()
         end)
+        ApplyElvUISkin(tradeButton, "button")
     end
 
     -- LFG button
@@ -982,6 +1031,7 @@ function Grouper:CreateButtons()
             activeSession.lfgNextSpam = time() + GrouperDB.lfgInterval
             Grouper:UpdateButtons()
         end)
+        ApplyElvUISkin(lfgButton, "button")
     end
 
     -- General button
@@ -995,6 +1045,7 @@ function Grouper:CreateButtons()
             activeSession.generalNextSpam = time() + GrouperDB.generalInterval
             Grouper:UpdateButtons()
         end)
+        ApplyElvUISkin(generalButton, "button")
     end
 
     buttonContainer:Show()
@@ -1293,6 +1344,9 @@ function Grouper:CreateConfigUI()
     configFrame:SetScript("OnShow", raiseConfigFrame)
     configFrame:SetScript("OnMouseDown", raiseConfigFrame)
 
+    -- Apply ElvUI skin
+    ApplyElvUISkin(configFrame, "frame")
+
     configFrame.title = configFrame:CreateFontString(nil, "OVERLAY")
     configFrame.title:SetFontObject("GameFontHighlight")
     configFrame.title:SetPoint("LEFT", configFrame.TitleBg, "LEFT", 5, 0)
@@ -1364,6 +1418,7 @@ function Grouper:CreateConfigUI()
 
     UIDropDownMenu_Initialize(dropdown, initialize)
     UIDropDownMenu_SetSelectedValue(dropdown, configFrame.selectedBoss)
+    ApplyElvUISkin(dropdown, "dropdown")
 
     -- Kill tracking label (right side)
     local killLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -1380,6 +1435,7 @@ function Grouper:CreateConfigUI()
     killButton:SetScript("OnClick", function()
         Grouper:ShowKillLog(configFrame.selectedBoss)
     end)
+    ApplyElvUISkin(killButton, "button")
     configFrame.killButton = killButton
 
     yOffset = yOffset - 60
@@ -1404,6 +1460,7 @@ function Grouper:CreateConfigUI()
         local config = Grouper:GetBossConfig(configFrame.selectedBoss)
         config.size = value
     end)
+    ApplyElvUISkin(sizeSlider, "slider")
     configFrame.sizeSlider = sizeSlider
 
     yOffset = yOffset - 70
@@ -1428,6 +1485,7 @@ function Grouper:CreateConfigUI()
         local config = Grouper:GetBossConfig(configFrame.selectedBoss)
         config.tanks = value
     end)
+    ApplyElvUISkin(tankSlider, "slider")
     configFrame.tankSlider = tankSlider
 
     yOffset = yOffset - 70
@@ -1452,6 +1510,7 @@ function Grouper:CreateConfigUI()
         local config = Grouper:GetBossConfig(configFrame.selectedBoss)
         config.healers = value
     end)
+    ApplyElvUISkin(healerSlider, "slider")
     configFrame.healerSlider = healerSlider
 
     yOffset = yOffset - 70
@@ -1472,6 +1531,7 @@ function Grouper:CreateConfigUI()
         local text = self:GetText()
         config.hr = (text ~= "" and text) or nil
     end)
+    ApplyElvUISkin(hrInput, "editbox")
     configFrame.hrInput = hrInput
 
     yOffset = yOffset - 60
@@ -1512,6 +1572,7 @@ function Grouper:CreateConfigUI()
             GrouperDB.tradeInterval = value
         end
     end)
+    ApplyElvUISkin(tradeInput, "editbox")
 
     yOffset = yOffset - 50
 
@@ -1544,6 +1605,7 @@ function Grouper:CreateConfigUI()
             GrouperDB.lfgInterval = value
         end
     end)
+    ApplyElvUISkin(lfgInput, "editbox")
 
     yOffset = yOffset - 50
 
@@ -1576,6 +1638,7 @@ function Grouper:CreateConfigUI()
             GrouperDB.generalInterval = value
         end
     end)
+    ApplyElvUISkin(generalInput, "editbox")
 
     yOffset = yOffset - 60
 
@@ -1587,6 +1650,7 @@ function Grouper:CreateConfigUI()
     previewButton:SetScript("OnClick", function()
         Grouper:ShowPreviewMessages(configFrame.selectedBoss)
     end)
+    ApplyElvUISkin(previewButton, "button")
 
     -- Start/Stop Buttons
     local startButton = CreateFrame("Button", "GrouperStartButton", configFrame, "UIPanelButtonTemplate")
@@ -1597,6 +1661,7 @@ function Grouper:CreateConfigUI()
         Grouper:StartSession(configFrame.selectedBoss, nil)
         configFrame:Hide()
     end)
+    ApplyElvUISkin(startButton, "button")
 
     local configStopButton = CreateFrame("Button", "GrouperConfigStopButton", configFrame, "UIPanelButtonTemplate")
     configStopButton:SetSize(140, 30)
@@ -1605,6 +1670,7 @@ function Grouper:CreateConfigUI()
     configStopButton:SetScript("OnClick", function()
         Grouper:StopSession()
     end)
+    ApplyElvUISkin(configStopButton, "button")
 
     -- Update UI with current values
     Grouper:UpdateConfigUI()
