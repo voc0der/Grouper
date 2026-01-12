@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.35"
+Grouper.version = "1.0.36"
 
 -- Default settings
 local defaults = {
@@ -1891,14 +1891,58 @@ function Grouper:HandleCommand(input)
         elseif subcmd == "nwb" then
             if NWB then
                 print("|cff00ff00[Grouper Debug]|r Nova World Buffs addon is loaded")
+
+                -- Check common layer variables
                 if NWB.currentLayer then
                     print("NWB.currentLayer = " .. tostring(NWB.currentLayer))
                 else
-                    print("NWB.currentLayer = nil (layer not detected yet)")
+                    print("NWB.currentLayer = nil")
                 end
-                -- Try other common NWB variables
-                if NWB.data and NWB.data.myLayerID then
-                    print("NWB.data.myLayerID = " .. tostring(NWB.data.myLayerID))
+
+                if NWB.layerID then
+                    print("NWB.layerID = " .. tostring(NWB.layerID))
+                end
+
+                if NWB.data then
+                    if NWB.data.myLayerID then
+                        print("NWB.data.myLayerID = " .. tostring(NWB.data.myLayerID))
+                    end
+                    if NWB.data.layer then
+                        print("NWB.data.layer = " .. tostring(NWB.data.layer))
+                    end
+                end
+
+                -- Try to call NWB functions if they exist
+                if NWB.getCurrentLayerID then
+                    local layer = NWB:getCurrentLayerID()
+                    print("NWB:getCurrentLayerID() = " .. tostring(layer))
+                end
+
+                if NWB.getLayerID then
+                    local layer = NWB:getLayerID()
+                    print("NWB:getLayerID() = " .. tostring(layer))
+                end
+
+                -- Show all top-level keys in NWB
+                print(" ")
+                print("All NWB keys (looking for layer-related data):")
+                local foundLayer = false
+                for key, value in pairs(NWB) do
+                    local vtype = type(value)
+                    if vtype == "number" or vtype == "string" or vtype == "boolean" then
+                        if string.find(string.lower(key), "layer") then
+                            print("  " .. key .. " = " .. tostring(value) .. " (" .. vtype .. ")")
+                            foundLayer = true
+                        end
+                    elseif vtype == "function" then
+                        if string.find(string.lower(key), "layer") then
+                            print("  " .. key .. " (function)")
+                            foundLayer = true
+                        end
+                    end
+                end
+                if not foundLayer then
+                    print("  No layer-related keys found in NWB table")
                 end
             else
                 print("|cffff9900[Grouper Debug]|r Nova World Buffs addon is NOT loaded")
