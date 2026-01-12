@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.36"
+Grouper.version = "1.0.37"
 
 -- Default settings
 local defaults = {
@@ -1873,6 +1873,7 @@ function Grouper:HandleCommand(input)
             print("|cff00ff00[Grouper Debug]|r Available debug commands:")
             print("|cffffcc00/grouper debug layer|r - Check current layer detection")
             print("|cffffcc00/grouper debug nwb|r - Check Nova World Buffs status")
+            print("|cffffcc00/grouper debug nwbdeep|r - Deep search of NWB data structure")
             print("|cffffcc00/grouper debug kills|r - Show all recorded kills")
             return
         end
@@ -1947,6 +1948,58 @@ function Grouper:HandleCommand(input)
             else
                 print("|cffff9900[Grouper Debug]|r Nova World Buffs addon is NOT loaded")
                 print("Install Nova World Buffs for automatic layer detection")
+            end
+
+        elseif subcmd == "nwbdeep" then
+            if not NWB then
+                print("|cffff9900[Grouper Debug]|r Nova World Buffs addon is NOT loaded")
+                return
+            end
+
+            print("|cff00ff00[Grouper Debug]|r Deep searching NWB structure for layer data...")
+            print(" ")
+
+            -- Function to recursively search for layer-related data
+            local function searchTable(t, path, depth)
+                if depth > 3 then return end -- Limit recursion depth
+
+                for key, value in pairs(t) do
+                    local currentPath = path .. "." .. tostring(key)
+                    local vtype = type(value)
+
+                    -- Check if key or value contains layer info
+                    local keyLower = string.lower(tostring(key))
+                    if string.find(keyLower, "layer") then
+                        if vtype == "table" then
+                            print(currentPath .. " = <table>")
+                            searchTable(value, currentPath, depth + 1)
+                        else
+                            print(currentPath .. " = " .. tostring(value) .. " (" .. vtype .. ")")
+                        end
+                    elseif vtype == "number" and value >= 1 and value <= 10 then
+                        -- Might be a layer number (1-10)
+                        if string.find(keyLower, "id") or string.find(keyLower, "current") or string.find(keyLower, "my") then
+                            print(currentPath .. " = " .. tostring(value) .. " (possible layer)")
+                        end
+                    elseif vtype == "table" and depth < 3 then
+                        searchTable(value, currentPath, depth + 1)
+                    end
+                end
+            end
+
+            print("Searching NWB table:")
+            searchTable(NWB, "NWB", 0)
+
+            print(" ")
+            print("Checking other potential NWB global variables:")
+            -- Check for other common NWB-related globals
+            if NWBData then
+                print("NWBData exists:")
+                searchTable(NWBData, "NWBData", 0)
+            end
+            if NovaWorldBuffs then
+                print("NovaWorldBuffs exists:")
+                searchTable(NovaWorldBuffs, "NovaWorldBuffs", 0)
             end
 
         elseif subcmd == "kills" then
