@@ -2,7 +2,7 @@
 ## Title: Grouper
 ## Notes: Manage PUG groups for raids, dungeons, and world bosses in WoW Classic
 ## Author: voc0der
-## Version: 1.0.39
+## Version: 1.0.40
 ## X-Curse-Project-ID: 1421970
 ## SavedVariables: GrouperDB
 

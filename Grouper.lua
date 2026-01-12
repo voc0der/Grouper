@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.39"
+Grouper.version = "1.0.40"
 
 -- Default settings
 local defaults = {
@@ -2220,6 +2220,31 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
     elseif event == "PLAYER_ENTERING_WORLD" then
         if activeSession.active then
             Grouper:UpdateButtons()
+        end
+    end
+end)
+
+-- Combat log event handler for automatic world boss kill detection
+local combatLogFrame = CreateFrame("Frame")
+combatLogFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+combatLogFrame:SetScript("OnEvent", function(self, event)
+    local _, subEvent, _, _, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()
+
+    if subEvent == "UNIT_DIED" and destName then
+        -- Check if the dead unit is a world boss
+        for bossName, config in pairs(defaults.bosses) do
+            if config.category == "World Boss" and destName == bossName then
+                -- Auto-record the kill
+                Grouper:MarkBossKilled(bossName)
+
+                -- Get layer info for the message
+                local layer = Grouper:GetCurrentLayer()
+                local layerText = layer and ("Layer " .. layer) or "Unknown layer"
+
+                -- Print confirmation message
+                print("|cff00ff00[Grouper]|r Auto-recorded " .. bossName .. " kill on " .. layerText)
+                break
+            end
         end
     end
 end)
