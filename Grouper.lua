@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.40"
+Grouper.version = "1.0.41"
 
 -- Default settings
 local defaults = {
@@ -2224,30 +2224,81 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
     end
 end)
 
+-- World boss zone IDs (Classic WoW)
+local worldBossZones = {
+    [16] = true,  -- Azshara (Azuregos)
+    [17] = true,  -- Blasted Lands (Lord Kazzak)
+    [47] = true,  -- Duskwood (Emeriss)
+    [26] = true,  -- The Hinterlands (Lethon)
+    [43] = true,  -- Ashenvale (Taerar)
+    [69] = true,  -- Feralas (Ysondre)
+}
+
 -- Combat log event handler for automatic world boss kill detection
 local combatLogFrame = CreateFrame("Frame")
-combatLogFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+local combatLogActive = false
+
+-- Function to check if we should listen to combat log
+local function shouldListenToCombatLog()
+    -- Only listen if in a raid or group
+    if not (IsInRaid() or IsInGroup()) then
+        return false
+    end
+
+    -- Only listen if in a world boss zone
+    local zoneID = C_Map.GetBestMapForUnit("player")
+    if not zoneID or not worldBossZones[zoneID] then
+        return false
+    end
+
+    return true
+end
+
+-- Function to update combat log registration
+local function updateCombatLogRegistration()
+    local shouldListen = shouldListenToCombatLog()
+
+    if shouldListen and not combatLogActive then
+        combatLogFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+        combatLogActive = true
+    elseif not shouldListen and combatLogActive then
+        combatLogFrame:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+        combatLogActive = false
+    end
+end
+
+-- Register zone change and group roster events to update combat log registration
+combatLogFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
+combatLogFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+
 combatLogFrame:SetScript("OnEvent", function(self, event)
-    local _, subEvent, _, _, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()
+    if event == "ZONE_CHANGED_NEW_AREA" or event == "GROUP_ROSTER_UPDATE" then
+        updateCombatLogRegistration()
+    elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
+        local _, subEvent, _, _, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()
 
-    if subEvent == "UNIT_DIED" and destName then
-        -- Check if the dead unit is a world boss
-        for bossName, config in pairs(defaults.bosses) do
-            if config.category == "World Boss" and destName == bossName then
-                -- Auto-record the kill
-                Grouper:MarkBossKilled(bossName)
+        if subEvent == "UNIT_DIED" and destName then
+            -- Check if the dead unit is a world boss
+            for bossName, config in pairs(defaults.bosses) do
+                if config.category == "World Boss" and destName == bossName then
+                    -- Auto-record the kill
+                    Grouper:MarkBossKilled(bossName)
 
-                -- Get layer info for the message
-                local layer = Grouper:GetCurrentLayer()
-                local layerText = layer and ("Layer " .. layer) or "Unknown layer"
+                    -- Get layer info for the message
+                    local layer = Grouper:GetCurrentLayer()
+                    local layerText = layer and ("Layer " .. layer) or "Unknown layer"
 
-                -- Print confirmation message
-                print("|cff00ff00[Grouper]|r Auto-recorded " .. bossName .. " kill on " .. layerText)
-                break
+                    -- Print confirmation message
+                    print("|cff00ff00[Grouper]|r Auto-recorded " .. bossName .. " kill on " .. layerText)
+                    break
+                end
             end
         end
     end
 end)
+
+-- Initial check on load
+C_Timer.After(2, updateCombatLogRegistration)
 
 -- Register slash commands
 SLASH_GROUPER1 = "/grouper"
