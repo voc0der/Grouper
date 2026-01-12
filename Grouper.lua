@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.37"
+Grouper.version = "1.0.38"
 
 -- Default settings
 local defaults = {
@@ -221,13 +221,19 @@ end
 function Grouper:GetCurrentLayer()
     -- Check if Nova World Buffs is installed and has layer info
     if NWB then
-        -- Try different possible NWB variables
-        if NWB.currentLayer then
+        -- Try NWB function first (most reliable)
+        if NWB.getCurrentLayerNum then
+            local layer = NWB:getCurrentLayerNum()
+            if layer and layer > 0 then
+                return layer
+            end
+        end
+
+        -- Try direct variables as fallback
+        if NWB.currentLayer and NWB.currentLayer > 0 then
             return NWB.currentLayer
-        elseif NWB.data and NWB.data.myLayerID then
-            return NWB.data.myLayerID
-        elseif NWB.layerID then
-            return NWB.layerID
+        elseif NWB.currentLayerShared and NWB.currentLayerShared > 0 then
+            return NWB.currentLayerShared
         end
     end
     return nil
