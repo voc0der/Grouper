@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.34"
+Grouper.version = "1.0.35"
 
 -- Default settings
 local defaults = {
@@ -220,8 +220,15 @@ end
 -- Get current layer from Nova World Buffs addon
 function Grouper:GetCurrentLayer()
     -- Check if Nova World Buffs is installed and has layer info
-    if NWB and NWB.currentLayer then
-        return NWB.currentLayer
+    if NWB then
+        -- Try different possible NWB variables
+        if NWB.currentLayer then
+            return NWB.currentLayer
+        elseif NWB.data and NWB.data.myLayerID then
+            return NWB.data.myLayerID
+        elseif NWB.layerID then
+            return NWB.layerID
+        end
     end
     return nil
 end
@@ -1860,6 +1867,73 @@ function Grouper:HandleCommand(input)
     elseif cmd == "off" then
         self:StopSession()
 
+    -- /grouper debug
+    elseif cmd == "debug" then
+        if #args < 2 then
+            print("|cff00ff00[Grouper Debug]|r Available debug commands:")
+            print("|cffffcc00/grouper debug layer|r - Check current layer detection")
+            print("|cffffcc00/grouper debug nwb|r - Check Nova World Buffs status")
+            print("|cffffcc00/grouper debug kills|r - Show all recorded kills")
+            return
+        end
+
+        local subcmd = string.lower(args[2])
+
+        if subcmd == "layer" then
+            local layer = self:GetCurrentLayer()
+            if layer then
+                print("|cff00ff00[Grouper Debug]|r Current layer: " .. layer)
+            else
+                print("|cffff9900[Grouper Debug]|r No layer detected")
+                print("Make sure Nova World Buffs is installed and has detected your layer")
+            end
+
+        elseif subcmd == "nwb" then
+            if NWB then
+                print("|cff00ff00[Grouper Debug]|r Nova World Buffs addon is loaded")
+                if NWB.currentLayer then
+                    print("NWB.currentLayer = " .. tostring(NWB.currentLayer))
+                else
+                    print("NWB.currentLayer = nil (layer not detected yet)")
+                end
+                -- Try other common NWB variables
+                if NWB.data and NWB.data.myLayerID then
+                    print("NWB.data.myLayerID = " .. tostring(NWB.data.myLayerID))
+                end
+            else
+                print("|cffff9900[Grouper Debug]|r Nova World Buffs addon is NOT loaded")
+                print("Install Nova World Buffs for automatic layer detection")
+            end
+
+        elseif subcmd == "kills" then
+            print("|cff00ff00[Grouper Debug]|r Recorded boss kills:")
+            local hasKills = false
+            for boss, kills in pairs(GrouperDB.bossKills) do
+                hasKills = true
+                if type(kills) == "table" then
+                    print(boss .. ": " .. #kills .. " kill(s)")
+                    for i, kill in ipairs(kills) do
+                        local timeStr = date("%Y-%m-%d %H:%M", kill.timestamp)
+                        local layerStr = kill.layer and ("Layer " .. kill.layer) or "Unknown"
+                        print("  " .. i .. ". " .. timeStr .. " - " .. layerStr)
+                    end
+                end
+            end
+            if not hasKills then
+                print("No kills recorded yet")
+            end
+        end
+
+    -- /grouper testkill (for debugging)
+    elseif cmd == "testkill" then
+        if #args < 2 then
+            print("|cffff0000[Grouper]|r Usage: /grouper testkill <boss>")
+            return
+        end
+        local boss = table.concat(args, " ", 2)
+        self:MarkBossKilled(boss)
+        print("|cff00ff00[Grouper]|r Test kill recorded for " .. boss)
+
     -- /grouper set
     elseif cmd == "set" then
         if #args < 3 then
@@ -1978,6 +2052,10 @@ function Grouper:ShowHelp()
     print("|cffffcc00/grouper set tradeinterval <seconds>|r - Set Trade spam interval")
     print("|cffffcc00/grouper set lfginterval <seconds>|r - Set LFG spam interval")
     print("|cffffcc00/grouper set generalinterval <seconds>|r - Set General spam interval")
+    print(" ")
+    print("Debug Commands:")
+    print("|cffffcc00/grouper debug|r - Show debug options")
+    print("|cffffcc00/grouper testkill <boss>|r - Record a test kill")
     print(" ")
     print("Buttons appear when recruiting. Click to spam channels.")
     print("Drag the buttons together as a unit to reposition them.")
