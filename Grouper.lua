@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.38"
+Grouper.version = "1.0.39"
 
 -- Default settings
 local defaults = {
@@ -220,6 +220,15 @@ end
 -- Get current layer from Nova World Buffs addon
 function Grouper:GetCurrentLayer()
     -- Check if Nova World Buffs is installed and has layer info
+    -- NWB uses AceAddon-3.0, so we need to get it via LibStub
+    local NWB = nil
+    if LibStub then
+        local success, addon = pcall(LibStub, "AceAddon-3.0")
+        if success and addon then
+            NWB = addon:GetAddon("NovaWorldBuffs", true)
+        end
+    end
+
     if NWB then
         -- Try NWB function first (most reliable)
         if NWB.getCurrentLayerNum then
@@ -1896,6 +1905,14 @@ function Grouper:HandleCommand(input)
             end
 
         elseif subcmd == "nwb" then
+            local NWB = nil
+            if LibStub then
+                local success, addon = pcall(LibStub, "AceAddon-3.0")
+                if success and addon then
+                    NWB = addon:GetAddon("NovaWorldBuffs", true)
+                end
+            end
+
             if NWB then
                 print("|cff00ff00[Grouper Debug]|r Nova World Buffs addon is loaded")
 
@@ -1957,6 +1974,14 @@ function Grouper:HandleCommand(input)
             end
 
         elseif subcmd == "nwbdeep" then
+            local NWB = nil
+            if LibStub then
+                local success, addon = pcall(LibStub, "AceAddon-3.0")
+                if success and addon then
+                    NWB = addon:GetAddon("NovaWorldBuffs", true)
+                end
+            end
+
             if not NWB then
                 print("|cffff9900[Grouper Debug]|r Nova World Buffs addon is NOT loaded")
                 return
