@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.43"
+Grouper.version = "1.0.44"
 
 -- Detect expansion
 local isClassic = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
@@ -61,9 +61,8 @@ local tbcBosses = {
 }
 
 local wrathBosses = {
-    -- World Bosses
-    ["Archavon the Stone Watcher"] = { tanks = 2, healers = 5, hr = nil, custom = nil, size = 25, category = "World Boss" },
     -- 10-Man Raids
+    ["Vault of Archavon (10)"] = { tanks = 2, healers = 2, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
     ["Naxxramas (10)"] = { tanks = 2, healers = 3, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
     ["The Obsidian Sanctum (10)"] = { tanks = 2, healers = 2, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
     ["Eye of Eternity (10)"] = { tanks = 2, healers = 2, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
@@ -72,6 +71,7 @@ local wrathBosses = {
     ["Icecrown Citadel (10)"] = { tanks = 2, healers = 3, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
     ["Ruby Sanctum (10)"] = { tanks = 2, healers = 2, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
     -- 25-Man Raids
+    ["Vault of Archavon (25)"] = { tanks = 2, healers = 5, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
     ["Naxxramas (25)"] = { tanks = 3, healers = 7, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
     ["The Obsidian Sanctum (25)"] = { tanks = 3, healers = 6, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
     ["Eye of Eternity (25)"] = { tanks = 3, healers = 6, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
@@ -2329,9 +2329,7 @@ elseif isTBC then
         [122] = true,  -- Shadowmoon Valley (Doomwalker)
     }
 elseif isWrath then
-    worldBossZones = {
-        [123] = true,  -- Wintergrasp (Archavon)
-    }
+    worldBossZones = {}  -- WOTLK has no outdoor world bosses
 end
 
 -- Combat log event handler for automatic world boss kill detection
