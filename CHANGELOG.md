@@ -58,6 +58,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GetBossConfig now safely handles nil boss names to prevent errors
 - Group Finder listing now only created on user-initiated actions (fixes "protected function" error)
 
+## [1.0.43] - 2026-01-13
+
+### Added
+- Zul'Aman to TBC boss list (10-man raid)
+
 ## [1.0.12] - Previous Release
 
 ### Added
@@ -75,5 +80,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.12...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.43...HEAD
+[1.0.43]: https://github.com/voc0der/Grouper/compare/v1.0.12...v1.0.43
 [1.0.12]: https://github.com/voc0der/Grouper/releases/tag/v1.0.12

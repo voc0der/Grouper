@@ -2,7 +2,7 @@
 ## Title: Grouper
 ## Notes: Manage PUG groups for raids, dungeons, and world bosses in Classic, TBC, and WOTLK
 ## Author: voc0der
-## Version: 1.0.42
+## Version: 1.0.43
 ## X-Curse-Project-ID: 1421970
 ## SavedVariables: GrouperDB
 
