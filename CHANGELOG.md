@@ -58,6 +58,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GetBossConfig now safely handles nil boss names to prevent errors
 - Group Finder listing now only created on user-initiated actions (fixes "protected function" error)
 
+## [1.0.45] - 2026-01-13
+
+### Added
+- Guild version checking system
+  - Automatically broadcasts addon version to guild members on login
+  - Alerts when a guild member has a newer version available
+  - Alert shows once per login session (non-intrusive)
+  - Configurable toggle in addon settings to enable/disable feature
+  - Uses WoW's addon message system for cross-player communication
+
 ## [1.0.44] - 2026-01-13
 
 ### Fixed
@@ -86,7 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.44...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.45...HEAD
+[1.0.45]: https://github.com/voc0der/Grouper/compare/v1.0.44...v1.0.45
 [1.0.44]: https://github.com/voc0der/Grouper/compare/v1.0.43...v1.0.44
 [1.0.43]: https://github.com/voc0der/Grouper/compare/v1.0.12...v1.0.43
 [1.0.12]: https://github.com/voc0der/Grouper/releases/tag/v1.0.12

@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.44"
+Grouper.version = "1.0.45"
 
 -- Detect expansion
 local isClassic = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
@@ -177,6 +177,15 @@ local minimapButton = nil
 local killLogFrame = nil
 local topFrameLevel = 100 -- Track highest frame level for proper z-ordering
 
+-- Version checking data
+local versionCheck = {
+    messagePrefix = "GrouperVer",
+    hasAlerted = false,           -- Alert once per login session
+    broadcastDelay = 5,            -- 5 second delay on login
+    highestVersion = nil,
+    guildVersions = {},
+}
+
 -- ElvUI Integration
 local E, L, V, P, G
 local S -- ElvUI Skins module
@@ -273,6 +282,14 @@ function Grouper:InitDB()
             end
         end
     end
+
+    -- Initialize version check settings
+    if not GrouperDB.versionCheck then
+        GrouperDB.versionCheck = {
+            enabled = true,
+            suppressedVersion = nil,
+        }
+    end
 end
 
 -- Get boss config (merge saved with defaults)
@@ -303,6 +320,127 @@ function Grouper:GetBossConfig(bossName)
         category = "Custom"
     }
     return GrouperDB.bosses[bossName]
+end
+
+-- Parse version string into major, minor, patch components
+function Grouper:ParseVersion(versionString)
+    if not versionString or type(versionString) ~= "string" then
+        return nil
+    end
+
+    local major, minor, patch = versionString:match("(%d+)%.(%d+)%.(%d+)")
+    if not major then
+        return nil
+    end
+
+    return {
+        major = tonumber(major),
+        minor = tonumber(minor),
+        patch = tonumber(patch),
+    }
+end
+
+-- Compare two version strings
+-- Returns: 1 if v1 > v2, -1 if v1 < v2, 0 if equal, nil on error
+function Grouper:CompareVersions(v1String, v2String)
+    local v1 = self:ParseVersion(v1String)
+    local v2 = self:ParseVersion(v2String)
+
+    if not v1 or not v2 then
+        return nil
+    end
+
+    -- Compare major version
+    if v1.major ~= v2.major then
+        return v1.major > v2.major and 1 or -1
+    end
+
+    -- Compare minor version
+    if v1.minor ~= v2.minor then
+        return v1.minor > v2.minor and 1 or -1
+    end
+
+    -- Compare patch version
+    if v1.patch ~= v2.patch then
+        return v1.patch > v2.patch and 1 or -1
+    end
+
+    return 0
+end
+
+-- Broadcast addon version to guild members
+function Grouper:BroadcastVersion()
+    if not IsInGuild() then
+        return
+    end
+
+    if not GrouperDB.versionCheck.enabled then
+        return
+    end
+
+    local message = "VERSION|" .. self.version .. "|" .. UnitName("player")
+    C_ChatInfo.RegisterAddonMessagePrefix(versionCheck.messagePrefix)
+    C_ChatInfo.SendAddonMessage(versionCheck.messagePrefix, message, "GUILD")
+end
+
+-- Handle incoming version message from guild member
+function Grouper:HandleVersionMessage(sender, message)
+    if not GrouperDB.versionCheck.enabled then
+        return
+    end
+
+    -- Parse message
+    local msgType, version, senderName = strsplit("|", message)
+    if msgType ~= "VERSION" or not version then
+        return
+    end
+
+    -- Extract character name without realm
+    local playerName = UnitName("player")
+    if senderName == playerName then
+        return  -- Don't compare to ourselves
+    end
+
+    -- Store in cache
+    versionCheck.guildVersions[sender] = version
+
+    -- Compare versions
+    local comparison = self:CompareVersions(version, self.version)
+    if comparison and comparison > 0 then
+        -- Their version is newer
+        if not versionCheck.highestVersion or
+           self:CompareVersions(version, versionCheck.highestVersion) > 0 then
+            versionCheck.highestVersion = version
+            self:AlertNewVersion(version, senderName)
+        end
+    end
+end
+
+-- Alert user about newer version
+function Grouper:AlertNewVersion(newerVersion, playerName)
+    -- Check if we should alert
+    if not GrouperDB.versionCheck.enabled then
+        return
+    end
+
+    if versionCheck.hasAlerted then
+        return  -- Already alerted this session
+    end
+
+    if GrouperDB.versionCheck.suppressedVersion == newerVersion then
+        return  -- User chose to ignore this version
+    end
+
+    -- Show alert
+    print("|cffff9900=== Grouper Update Available ===|r")
+    print("|cffff9900[Grouper]|r A newer version is available!")
+    print("|cffff9900[Grouper]|r Your version: " .. self.version)
+    print("|cffff9900[Grouper]|r Latest version: " .. newerVersion .. " (seen on " .. playerName .. ")")
+    print("|cffff9900[Grouper]|r Visit CurseForge to download the latest version.")
+    print("|cffff9900====================================|r")
+
+    -- Mark as alerted for this session
+    versionCheck.hasAlerted = true
 end
 
 -- Get current layer from Nova World Buffs addon
@@ -1795,6 +1933,31 @@ function Grouper:CreateConfigUI()
 
     yOffset = yOffset - 60
 
+    -- Version Check Toggle
+    local versionCheckLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    versionCheckLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    versionCheckLabel:SetText("Enable Version Checking:")
+
+    local versionCheckBox = CreateFrame("CheckButton", "GrouperVersionCheckBox", configFrame, "UICheckButtonTemplate")
+    versionCheckBox:SetPoint("LEFT", versionCheckLabel, "RIGHT", 10, 0)
+    versionCheckBox:SetSize(24, 24)
+    versionCheckBox:SetChecked(GrouperDB.versionCheck.enabled)
+    versionCheckBox:SetScript("OnClick", function(self)
+        GrouperDB.versionCheck.enabled = self:GetChecked()
+        if GrouperDB.versionCheck.enabled then
+            print("|cff00ff00[Grouper]|r Version checking enabled")
+        else
+            print("|cffff9900[Grouper]|r Version checking disabled")
+        end
+    end)
+
+    local versionCheckTooltip = versionCheckLabel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    versionCheckTooltip:SetPoint("TOPLEFT", versionCheckLabel, "BOTTOMLEFT", 0, -5)
+    versionCheckTooltip:SetText("(Notifies you when guild members have a newer version)")
+    versionCheckTooltip:SetTextColor(0.7, 0.7, 0.7)
+
+    yOffset = yOffset - 60
+
     -- Preview Button
     local previewButton = CreateFrame("Button", "GrouperPreviewButton", configFrame, "UIPanelButtonTemplate")
     previewButton:SetSize(200, 30)
@@ -2295,9 +2458,13 @@ end
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-eventFrame:SetScript("OnEvent", function(self, event, arg1)
+eventFrame:RegisterEvent("CHAT_MSG_ADDON")
+eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
     if event == "ADDON_LOADED" and arg1 == "Grouper" then
         Grouper:InitDB()
+
+        -- Register addon message prefix for version checking
+        C_ChatInfo.RegisterAddonMessagePrefix(versionCheck.messagePrefix)
 
         -- Initialize minimap button
         if GrouperDB.minimapButton.show then
@@ -2308,6 +2475,16 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
     elseif event == "PLAYER_ENTERING_WORLD" then
         if activeSession.active then
             Grouper:UpdateButtons()
+        end
+
+        -- Broadcast version to guild after delay
+        C_Timer.After(versionCheck.broadcastDelay, function()
+            Grouper:BroadcastVersion()
+        end)
+    elseif event == "CHAT_MSG_ADDON" then
+        local prefix, message, channel, sender = arg1, arg2, arg3, arg4
+        if prefix == versionCheck.messagePrefix and channel == "GUILD" then
+            Grouper:HandleVersionMessage(sender, message)
         end
     end
 end)
