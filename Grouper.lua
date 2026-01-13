@@ -38,8 +38,10 @@ local tbcBosses = {
     -- World Bosses
     ["Doom Lord Kazzak"] = { tanks = 2, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
     ["Doomwalker"] = { tanks = 2, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
-    -- 25-Man Raids
+    -- 10-Man Raids
     ["Karazhan"] = { tanks = 2, healers = 3, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
+    ["Zul'Aman"] = { tanks = 2, healers = 3, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
+    -- 25-Man Raids
     ["Gruul's Lair"] = { tanks = 3, healers = 6, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
     ["Magtheridon's Lair"] = { tanks = 3, healers = 6, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
     ["Serpentshrine Cavern"] = { tanks = 3, healers = 7, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
