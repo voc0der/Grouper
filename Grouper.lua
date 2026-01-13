@@ -1,6 +1,102 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.41"
+Grouper.version = "1.0.42"
+
+-- Detect expansion
+local isClassic = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
+local isTBC = WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC
+local isWrath = WOW_PROJECT_ID == WOW_PROJECT_WRATH_CLASSIC
+
+-- Expansion-specific boss configurations
+local classicBosses = {
+    -- World Bosses
+    ["Azuregos"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+    ["Lord Kazzak"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+    ["Emeriss"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+    ["Lethon"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+    ["Taerar"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+    ["Ysondre"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+    -- 40-Man Raids
+    ["Molten Core"] = { tanks = 3, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
+    ["Onyxia's Lair"] = { tanks = 2, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
+    ["Blackwing Lair"] = { tanks = 3, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
+    ["Ahn'Qiraj (AQ40)"] = { tanks = 3, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
+    ["Naxxramas"] = { tanks = 4, healers = 10, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
+    -- 20-Man Raids
+    ["Zul'Gurub"] = { tanks = 2, healers = 5, hr = nil, custom = nil, size = 20, category = "20-Man Raid" },
+    ["Ruins of Ahn'Qiraj (AQ20)"] = { tanks = 2, healers = 4, hr = nil, custom = nil, size = 20, category = "20-Man Raid" },
+    -- 5-Man Dungeons
+    ["Stratholme"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Scholomance"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Upper Blackrock Spire"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Lower Blackrock Spire"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Dire Maul"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Blackrock Depths"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+}
+
+local tbcBosses = {
+    -- World Bosses
+    ["Doom Lord Kazzak"] = { tanks = 2, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+    ["Doomwalker"] = { tanks = 2, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+    -- 25-Man Raids
+    ["Karazhan"] = { tanks = 2, healers = 3, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
+    ["Gruul's Lair"] = { tanks = 3, healers = 6, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    ["Magtheridon's Lair"] = { tanks = 3, healers = 6, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    ["Serpentshrine Cavern"] = { tanks = 3, healers = 7, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    ["Tempest Keep"] = { tanks = 3, healers = 7, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    ["Mount Hyjal"] = { tanks = 3, healers = 7, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    ["Black Temple"] = { tanks = 3, healers = 7, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    ["Sunwell Plateau"] = { tanks = 3, healers = 7, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    -- 5-Man Dungeons
+    ["Hellfire Ramparts"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["The Blood Furnace"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["The Slave Pens"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["The Underbog"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Mana-Tombs"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Auchenai Crypts"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Sethekk Halls"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Shadow Labyrinth"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+}
+
+local wrathBosses = {
+    -- World Bosses
+    ["Archavon the Stone Watcher"] = { tanks = 2, healers = 5, hr = nil, custom = nil, size = 25, category = "World Boss" },
+    -- 10-Man Raids
+    ["Naxxramas (10)"] = { tanks = 2, healers = 3, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
+    ["The Obsidian Sanctum (10)"] = { tanks = 2, healers = 2, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
+    ["Eye of Eternity (10)"] = { tanks = 2, healers = 2, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
+    ["Ulduar (10)"] = { tanks = 2, healers = 3, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
+    ["Trial of the Crusader (10)"] = { tanks = 2, healers = 2, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
+    ["Icecrown Citadel (10)"] = { tanks = 2, healers = 3, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
+    ["Ruby Sanctum (10)"] = { tanks = 2, healers = 2, hr = nil, custom = nil, size = 10, category = "10-Man Raid" },
+    -- 25-Man Raids
+    ["Naxxramas (25)"] = { tanks = 3, healers = 7, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    ["The Obsidian Sanctum (25)"] = { tanks = 3, healers = 6, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    ["Eye of Eternity (25)"] = { tanks = 3, healers = 6, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    ["Ulduar (25)"] = { tanks = 3, healers = 7, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    ["Trial of the Crusader (25)"] = { tanks = 3, healers = 6, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    ["Icecrown Citadel (25)"] = { tanks = 3, healers = 7, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    ["Ruby Sanctum (25)"] = { tanks = 3, healers = 6, hr = nil, custom = nil, size = 25, category = "25-Man Raid" },
+    -- 5-Man Dungeons
+    ["Utgarde Keep"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["The Nexus"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Azjol-Nerub"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Ahn'kahet"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Drak'Tharon Keep"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Violet Hold"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Gundrak"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Halls of Stone"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["Halls of Lightning"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+    ["The Culling of Stratholme"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+}
+
+-- Select appropriate boss list based on expansion
+local selectedBosses = classicBosses
+if isTBC then
+    selectedBosses = tbcBosses
+elseif isWrath then
+    selectedBosses = wrathBosses
+end
 
 -- Default settings
 local defaults = {
@@ -9,43 +105,33 @@ local defaults = {
     tradeInterval = 60,
     lfgInterval = 60,
     generalInterval = 60,
-    bosses = {
-        -- World Bosses
-        ["Azuregos"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
-        ["Lord Kazzak"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
-        ["Emeriss"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
-        ["Lethon"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
-        ["Taerar"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
-        ["Ysondre"] = { tanks = 1, healers = 6, hr = nil, custom = nil, size = 25, category = "World Boss" },
+    bosses = selectedBosses
+}
 
-        -- 40-Man Raids
-        ["Molten Core"] = { tanks = 3, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
-        ["Onyxia's Lair"] = { tanks = 2, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
-        ["Blackwing Lair"] = { tanks = 3, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
-        ["Ahn'Qiraj (AQ40)"] = { tanks = 3, healers = 8, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
-        ["Naxxramas"] = { tanks = 4, healers = 10, hr = nil, custom = nil, size = 40, category = "40-Man Raid" },
-
-        -- 20-Man Raids
-        ["Zul'Gurub"] = { tanks = 2, healers = 5, hr = nil, custom = nil, size = 20, category = "20-Man Raid" },
-        ["Ruins of Ahn'Qiraj (AQ20)"] = { tanks = 2, healers = 4, hr = nil, custom = nil, size = 20, category = "20-Man Raid" },
-
-        -- 5-Man Dungeons
-        ["Stratholme"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
-        ["Scholomance"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
-        ["Upper Blackrock Spire"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
-        ["Lower Blackrock Spire"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
-        ["Dire Maul"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
-        ["Blackrock Depths"] = { tanks = 1, healers = 1, hr = nil, custom = nil, size = 5, category = "5-Man Dungeon" },
+-- Boss categories for UI (expansion-specific)
+local bossCategories
+if isClassic then
+    bossCategories = {
+        "World Boss",
+        "40-Man Raid",
+        "20-Man Raid",
+        "5-Man Dungeon"
     }
-}
-
--- Boss categories for UI
-local bossCategories = {
-    "World Boss",
-    "40-Man Raid",
-    "20-Man Raid",
-    "5-Man Dungeon"
-}
+elseif isTBC then
+    bossCategories = {
+        "World Boss",
+        "25-Man Raid",
+        "10-Man Raid",
+        "5-Man Dungeon"
+    }
+elseif isWrath then
+    bossCategories = {
+        "World Boss",
+        "25-Man Raid",
+        "10-Man Raid",
+        "5-Man Dungeon"
+    }
+end
 
 -- LFG Activity ID mappings (for Group Finder)
 -- These IDs may vary by version - will use "Other" category if specific IDs don't work
@@ -2224,15 +2310,27 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
     end
 end)
 
--- World boss zone IDs (Classic WoW)
-local worldBossZones = {
-    [16] = true,  -- Azshara (Azuregos)
-    [17] = true,  -- Blasted Lands (Lord Kazzak)
-    [47] = true,  -- Duskwood (Emeriss)
-    [26] = true,  -- The Hinterlands (Lethon)
-    [43] = true,  -- Ashenvale (Taerar)
-    [69] = true,  -- Feralas (Ysondre)
-}
+-- World boss zone IDs (expansion-specific)
+local worldBossZones
+if isClassic then
+    worldBossZones = {
+        [16] = true,  -- Azshara (Azuregos)
+        [17] = true,  -- Blasted Lands (Lord Kazzak)
+        [47] = true,  -- Duskwood (Emeriss)
+        [26] = true,  -- The Hinterlands (Lethon)
+        [43] = true,  -- Ashenvale (Taerar)
+        [69] = true,  -- Feralas (Ysondre)
+    }
+elseif isTBC then
+    worldBossZones = {
+        [111] = true,  -- Shadowmoon Valley (Doom Lord Kazzak)
+        [122] = true,  -- Shadowmoon Valley (Doomwalker)
+    }
+elseif isWrath then
+    worldBossZones = {
+        [123] = true,  -- Wintergrasp (Archavon)
+    }
+end
 
 -- Combat log event handler for automatic world boss kill detection
 local combatLogFrame = CreateFrame("Frame")
