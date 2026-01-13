@@ -2,13 +2,13 @@
 
 ## Multi-Expansion Support
 
-Grouper supports Classic, TBC, and WOTLK in a single addon package. The TOC file specifies multiple interface versions:
+Grouper supports Classic, TBC, and WOTLK in a **single unified addon**. The TOC file specifies multiple interface versions:
 
 ```
 ## Interface: 11507, 20505, 30403
 ```
 
-This tells CurseForge to create separate downloads for each game version automatically.
+This tells CurseForge that ONE addon works with all three game versions. Players on any expansion download the same package.
 
 ## Release Process
 
@@ -23,7 +23,7 @@ This tells CurseForge to create separate downloads for each game version automat
    git tag v1.0.X
    git push origin main --tags
    ```
-4. CurseForge will automatically pick up the tag and create releases for all three expansions
+4. CurseForge will automatically pick up the tag and release ONE addon marked as compatible with all three expansions
 
 ### Option 2: Manual Upload to CurseForge
 
@@ -34,7 +34,7 @@ This tells CurseForge to create separate downloads for each game version automat
    ```
 2. Go to [CurseForge Project Page](https://www.curseforge.com/wow/addons/grouper/files)
 3. Upload the zip file
-4. CurseForge will automatically create separate downloads for:
+4. CurseForge will mark it as compatible with all three game versions:
    - Classic (11507)
    - TBC (20505)
    - WOTLK (30403)
@@ -48,7 +48,7 @@ cf-cli upload --project-id 1421970 --version 1.0.X
 
 ## What Gets Released
 
-The `.pkgmeta` file controls what gets included:
+The `.pkgmeta` file controls what gets included in the single package:
 - ✅ Grouper.lua
 - ✅ Grouper.toc
 - ✅ CHANGELOG.md
@@ -58,10 +58,10 @@ The `.pkgmeta` file controls what gets included:
 ## Automatic Features
 
 CurseForge will:
-- Create separate downloads for each game version
+- Mark the addon as compatible with Classic, TBC, and WOTLK
 - Parse the CHANGELOG.md for release notes
-- Set the correct game version compatibility automatically
-- List all three versions on the addon page
+- Show the addon as available for all three game versions
+- Players download the SAME addon regardless of which expansion they play
 
 ## Version Numbering
 
