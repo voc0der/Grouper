@@ -58,6 +58,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GetBossConfig now safely handles nil boss names to prevent errors
 - Group Finder listing now only created on user-initiated actions (fixes "protected function" error)
 
+## [1.0.46] - 2026-01-14
+
+### Fixed
+- Fixed CreateFontString error in version check UI tooltip (line 1954)
+
 ## [1.0.45] - 2026-01-13
 
 ### Added
@@ -96,7 +101,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.45...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.46...HEAD
+[1.0.46]: https://github.com/voc0der/Grouper/compare/v1.0.45...v1.0.46
 [1.0.45]: https://github.com/voc0der/Grouper/compare/v1.0.44...v1.0.45
 [1.0.44]: https://github.com/voc0der/Grouper/compare/v1.0.43...v1.0.44
 [1.0.43]: https://github.com/voc0der/Grouper/compare/v1.0.12...v1.0.43

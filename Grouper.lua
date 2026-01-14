@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.45"
+Grouper.version = "1.0.46"
 
 -- Detect expansion
 local isClassic = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
@@ -1951,7 +1951,7 @@ function Grouper:CreateConfigUI()
         end
     end)
 
-    local versionCheckTooltip = versionCheckLabel:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local versionCheckTooltip = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     versionCheckTooltip:SetPoint("TOPLEFT", versionCheckLabel, "BOTTOMLEFT", 0, -5)
     versionCheckTooltip:SetText("(Notifies you when guild members have a newer version)")
     versionCheckTooltip:SetTextColor(0.7, 0.7, 0.7)
