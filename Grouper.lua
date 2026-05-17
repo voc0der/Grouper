@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.46"
+Grouper.version = "1.0.47"
 
 -- Detect expansion
 local isClassic = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC

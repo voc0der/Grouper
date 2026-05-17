@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.47] - 2026-05-17
+
+### Changed
+- Bumped release metadata for the multi-expansion TOC target, including TBC Anniversary `20505`.
+
 ### Added
 - Boss/dungeon selection persistence - UI now remembers your last selected boss/dungeon
 - Layer tracking for world boss kills
@@ -101,7 +106,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.46...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.47...HEAD
+[1.0.47]: https://github.com/voc0der/Grouper/compare/v1.0.46...v1.0.47
 [1.0.46]: https://github.com/voc0der/Grouper/compare/v1.0.45...v1.0.46
 [1.0.45]: https://github.com/voc0der/Grouper/compare/v1.0.44...v1.0.45
 [1.0.44]: https://github.com/voc0der/Grouper/compare/v1.0.43...v1.0.44

@@ -70,4 +70,4 @@ Follow semantic versioning: `MAJOR.MINOR.PATCH`
 - MINOR: New features
 - PATCH: Bug fixes
 
-Current version: 1.0.42
+Current version: 1.0.47
