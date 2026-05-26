@@ -18,10 +18,14 @@ concurrency:
 jobs:
   package:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ env.RELEASE_PAT != '' && env.RELEASE_PAT || github.token }}
 
       - name: Verify release package contents
         shell: bash

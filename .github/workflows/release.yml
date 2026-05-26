@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release, for example v1.0.50. Leave empty to release the selected ref."
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -12,19 +17,36 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      PACKAGER_REF: v2
+      RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
+          token: ${{ env.RELEASE_PAT != '' && env.RELEASE_PAT || github.token }}
 
       - name: Verify release package contents
         shell: bash
         run: bash ./.github/scripts/verify-release-package.sh
 
+      - name: Download packager
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch "$PACKAGER_REF" https://github.com/BigWigsMods/packager.git "$RUNNER_TEMP/packager"
+
       - name: Package and release
-        uses: BigWigsMods/packager@v2
+        shell: bash
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
-          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OAUTH: ${{ env.RELEASE_PAT != '' && env.RELEASE_PAT || github.token }}
+          INPUT_ARGS: ""
+          INPUT_PANDOC: "true"
+        run: |
+          set -euo pipefail
+          bash "$RUNNER_TEMP/packager/setup-packager.sh"
+          bash "$RUNNER_TEMP/packager/release.sh"
