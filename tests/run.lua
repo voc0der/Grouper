@@ -63,6 +63,24 @@ local function groupMissingIncludes(plan, index, text)
     return false
 end
 
+local function listIncludes(list, text)
+    for _, value in ipairs(list or {}) do
+        if value == text then
+            return true
+        end
+    end
+    return false
+end
+
+local function listIncludesAny(list, values)
+    for _, wanted in ipairs(values or {}) do
+        if listIncludes(list, wanted) then
+            return true
+        end
+    end
+    return false
+end
+
 local function groupForPlayer(plan, playerName)
     for groupIndex, group in ipairs(plan.layout or {}) do
         for _, unit in ipairs(group) do
@@ -211,6 +229,59 @@ test("planning mode includes a shaman-heavy 25-player simulation", function()
     assertEquals(planningContext.rosterSize, 25, "shaman-heavy planning scenario should be a full raid")
     assertTrue(shamans >= 4, "planning mode should offer a scenario with at least four shamans")
     assertTrue(enhancement >= 2, "planning mode should offer a scenario with multiple enhancement shamans")
+end)
+
+test("smart advertiser respects configured tank and healer needs", function()
+    local players = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+        unit("Prayer", "PRIEST", "HEALER", "HOLY", 5),
+        unit("Lightwell", "PRIEST", "HEALER", "DISCIPLINE", 5),
+        unit("Chainheal", "SHAMAN", "HEALER", "RESTORATION", 5),
+        unit("Tree", "DRUID", "HEALER", "RESTORATION", 5),
+        unit("Holyshield", "PALADIN", "HEALER", "HOLY", 5),
+        unit("Cleanse", "PALADIN", "HEALER", "HOLY", 5),
+        unit("Windfury", "SHAMAN", "DAMAGER", "ENHANCEMENT", 2),
+        unit("Stormbolt", "SHAMAN", "DAMAGER", "ELEMENTAL", 3),
+        unit("Moonchef", "DRUID", "DAMAGER", "BALANCE", 3),
+        unit("Backstab", "ROGUE", "DAMAGER", "ROGUE_DPS", 2),
+        unit("Frosty", "MAGE", "DAMAGER", "MAGE_CASTER", 3),
+    }
+
+    local needs = T.BuildSmartAdvertiserNeeds(context(players), { size = 25, tanks = 3, healers = 7 })
+    assertTrue(listIncludes(needs.roleNeeds, "1 Tank"), "smart advertiser should keep asking for the configured third tank")
+    assertTrue(listIncludes(needs.roleNeeds, "1 Healer"), "smart advertiser should keep asking for the configured seventh healer")
+    assertTrue(needs.openSlots > needs.tanksNeeded + needs.healersNeeded, "remaining open slots should stay available for DPS")
+end)
+
+test("smart advertiser uses organizer scoring for balanced DPS suggestions", function()
+    local players = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+        unit("Prayer", "PRIEST", "HEALER", "HOLY", 5),
+        unit("Lightwell", "PRIEST", "HEALER", "DISCIPLINE", 5),
+        unit("Chainheal", "SHAMAN", "HEALER", "RESTORATION", 5),
+        unit("Tree", "DRUID", "HEALER", "RESTORATION", 5),
+        unit("Holyshield", "PALADIN", "HEALER", "HOLY", 5),
+        unit("Cleanse", "PALADIN", "HEALER", "HOLY", 5),
+        unit("Renew", "PRIEST", "HEALER", "HOLY", 5),
+        unit("Windfury", "SHAMAN", "DAMAGER", "ENHANCEMENT", 2),
+        unit("Backstab", "ROGUE", "DAMAGER", "ROGUE_DPS", 2),
+        unit("Shadowcut", "ROGUE", "DAMAGER", "ROGUE_DPS", 2),
+        unit("Slammer", "WARRIOR", "DAMAGER", "WARRIOR_DPS", 2),
+        unit("Retadin", "PALADIN", "DAMAGER", "RETRIBUTION", 2),
+        unit("Catshift", "DRUID", "DAMAGER", "FERAL", 2),
+        unit("Dotone", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3),
+        unit("Frosty", "MAGE", "DAMAGER", "MAGE_CASTER", 3),
+    }
+
+    local needs = T.BuildSmartAdvertiserNeeds(context(players), { size = 25, tanks = 3, healers = 7 })
+    assertTrue(listIncludes(needs.roleNeeds, "DPS"), "smart advertiser should ask for DPS once tank/healer targets are met")
+    assertTrue(
+        listIncludesAny(needs.specNeeds, { "Ele Shaman", "Boomkin", "Shadow Priest", "Warlock", "Mage", "Arcane Mage" }),
+        "physical-heavy rosters should get caster-side smart suggestions"
+    )
 end)
 
 local failures = 0
