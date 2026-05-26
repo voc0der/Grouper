@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.48"
+Grouper.version = "1.0.49"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -3321,7 +3321,7 @@ function Grouper:CreateConfigUI()
 
     -- Main frame
     configFrame = CreateFrame("Frame", "GrouperConfigFrame", UIParent, "BasicFrameTemplateWithInset")
-    configFrame:SetSize(500, 710)
+    configFrame:SetSize(560, 650)
     configFrame:SetPoint("CENTER")
     configFrame:SetMovable(true)
     configFrame:EnableMouse(true)
@@ -3519,7 +3519,7 @@ function Grouper:CreateConfigUI()
 
     local hrInput = CreateFrame("EditBox", "GrouperHRInput", configFrame, "InputBoxTemplate")
     hrInput:SetPoint("TOPLEFT", hrLabel, "BOTTOMLEFT", 5, -5)
-    hrInput:SetSize(300, 20)
+    hrInput:SetSize(480, 20)
     hrInput:SetAutoFocus(false)
     hrInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     hrInput:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
@@ -3540,7 +3540,7 @@ function Grouper:CreateConfigUI()
 
     local customInput = CreateFrame("EditBox", "GrouperCustomInput", configFrame, "InputBoxTemplate")
     customInput:SetPoint("TOPLEFT", customLabel, "BOTTOMLEFT", 5, -5)
-    customInput:SetSize(300, 20)
+    customInput:SetSize(480, 20)
     customInput:SetAutoFocus(false)
     customInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     customInput:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
@@ -3568,7 +3568,7 @@ function Grouper:CreateConfigUI()
 
     local tradeInput = CreateFrame("EditBox", "GrouperTradeIntervalInput", configFrame, "InputBoxTemplate")
     tradeInput:SetPoint("TOPLEFT", tradeLabel, "BOTTOMLEFT", 5, -5)
-    tradeInput:SetSize(80, 20)
+    tradeInput:SetSize(120, 20)
     tradeInput:SetAutoFocus(false)
     tradeInput:SetNumeric(true)
     tradeInput:SetText(tostring(GrouperDB.tradeInterval or 60))
@@ -3592,16 +3592,14 @@ function Grouper:CreateConfigUI()
     end)
     ApplyElvUISkin(tradeInput, "editbox")
 
-    yOffset = yOffset - 50
-
     -- LFG Interval
     local lfgLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    lfgLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    lfgLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 200, yOffset)
     lfgLabel:SetText("LFG Chat:")
 
     local lfgInput = CreateFrame("EditBox", "GrouperLFGIntervalInput", configFrame, "InputBoxTemplate")
     lfgInput:SetPoint("TOPLEFT", lfgLabel, "BOTTOMLEFT", 5, -5)
-    lfgInput:SetSize(80, 20)
+    lfgInput:SetSize(120, 20)
     lfgInput:SetAutoFocus(false)
     lfgInput:SetNumeric(true)
     lfgInput:SetText(tostring(GrouperDB.lfgInterval or 60))
@@ -3625,16 +3623,14 @@ function Grouper:CreateConfigUI()
     end)
     ApplyElvUISkin(lfgInput, "editbox")
 
-    yOffset = yOffset - 50
-
     -- General Interval
     local generalLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    generalLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 20, yOffset)
+    generalLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 380, yOffset)
     generalLabel:SetText("General Chat:")
 
     local generalInput = CreateFrame("EditBox", "GrouperGeneralIntervalInput", configFrame, "InputBoxTemplate")
     generalInput:SetPoint("TOPLEFT", generalLabel, "BOTTOMLEFT", 5, -5)
-    generalInput:SetSize(80, 20)
+    generalInput:SetSize(120, 20)
     generalInput:SetAutoFocus(false)
     generalInput:SetNumeric(true)
     generalInput:SetText(tostring(GrouperDB.generalInterval or 60))
@@ -3683,12 +3679,10 @@ function Grouper:CreateConfigUI()
     versionCheckTooltip:SetText("(Notifies you when guild members have a newer version)")
     versionCheckTooltip:SetTextColor(0.7, 0.7, 0.7)
 
-    yOffset = yOffset - 60
-
     -- Smart Organize Button
     local organizeButton = CreateFrame("Button", "GrouperSmartOrganizeButton", configFrame, "UIPanelButtonTemplate")
-    organizeButton:SetSize(200, 30)
-    organizeButton:SetPoint("BOTTOM", configFrame, "BOTTOM", 0, 95)
+    organizeButton:SetSize(230, 30)
+    organizeButton:SetPoint("BOTTOMLEFT", configFrame, "BOTTOMLEFT", 40, 60)
     organizeButton:SetText("Smart Organize Raid")
     organizeButton:SetScript("OnClick", function()
         Grouper:ShowSmartOrganizePreview()
@@ -3697,8 +3691,8 @@ function Grouper:CreateConfigUI()
 
     -- Preview Button
     local previewButton = CreateFrame("Button", "GrouperPreviewButton", configFrame, "UIPanelButtonTemplate")
-    previewButton:SetSize(200, 30)
-    previewButton:SetPoint("BOTTOM", configFrame, "BOTTOM", 0, 60)
+    previewButton:SetSize(230, 30)
+    previewButton:SetPoint("BOTTOMRIGHT", configFrame, "BOTTOMRIGHT", -40, 60)
     previewButton:SetText("Preview Messages")
     previewButton:SetScript("OnClick", function()
         Grouper:ShowPreviewMessages(configFrame.selectedBoss)
@@ -3707,8 +3701,8 @@ function Grouper:CreateConfigUI()
 
     -- Start/Stop Buttons
     local startButton = CreateFrame("Button", "GrouperStartButton", configFrame, "UIPanelButtonTemplate")
-    startButton:SetSize(140, 30)
-    startButton:SetPoint("BOTTOMLEFT", configFrame, "BOTTOMLEFT", 20, 20)
+    startButton:SetSize(230, 30)
+    startButton:SetPoint("BOTTOMLEFT", configFrame, "BOTTOMLEFT", 40, 20)
     startButton:SetText("Start Recruiting")
     startButton:SetScript("OnClick", function()
         Grouper:StartSession(configFrame.selectedBoss, nil)
@@ -3717,8 +3711,8 @@ function Grouper:CreateConfigUI()
     ApplyElvUISkin(startButton, "button")
 
     local configStopButton = CreateFrame("Button", "GrouperConfigStopButton", configFrame, "UIPanelButtonTemplate")
-    configStopButton:SetSize(140, 30)
-    configStopButton:SetPoint("BOTTOMRIGHT", configFrame, "BOTTOMRIGHT", -20, 20)
+    configStopButton:SetSize(230, 30)
+    configStopButton:SetPoint("BOTTOMRIGHT", configFrame, "BOTTOMRIGHT", -40, 20)
     configStopButton:SetText("Stop Recruiting")
     configStopButton:SetScript("OnClick", function()
         Grouper:StopSession()

@@ -40,8 +40,8 @@ Before automated release can work end-to-end, configure:
 ### Troubleshooting
 
 - No new tag created:
-  - Check `## Version:` in `Grouper.toc` is bumped, for example `1.0.48`
-  - If tag already exists, for example `v1.0.48`, workflow will skip by design
+  - Check `## Version:` in `Grouper.toc` is bumped, for example `1.0.49`
+  - If tag already exists, for example `v1.0.49`, workflow will skip by design
 - Tag created but no CurseForge upload:
   - Confirm `CF_API_KEY` exists in repo secrets
   - Confirm `## X-Curse-Project-ID:` and `.pkgmeta` project metadata are set to valid numeric project IDs
