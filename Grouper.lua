@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.51"
+Grouper.version = "1.0.52"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -2291,7 +2291,9 @@ local function ScoreOrganizerPairOneWay(anchor, other)
     local score = 0
 
     if IsOrganizerElemental(anchor) then
-        if other.class == "WARLOCK" and IsOrganizerDamager(other) then
+        if IsOrganizerProtPaladinTank(other) then
+            score = score + 12
+        elseif other.class == "WARLOCK" and IsOrganizerDamager(other) then
             score = score + 10
         elseif other.class == "MAGE" and IsOrganizerDamager(other) then
             score = score + 8
@@ -2305,7 +2307,9 @@ local function ScoreOrganizerPairOneWay(anchor, other)
     end
 
     if IsOrganizerBoomkin(anchor) then
-        if other.class == "WARLOCK" and IsOrganizerDamager(other) then
+        if IsOrganizerProtPaladinTank(other) then
+            score = score + 10
+        elseif other.class == "WARLOCK" and IsOrganizerDamager(other) then
             score = score + 9
         elseif other.class == "MAGE" and IsOrganizerDamager(other) then
             score = score + 7
@@ -2350,8 +2354,22 @@ local function ScoreOrganizerPairOneWay(anchor, other)
         end
     end
 
-    if IsOrganizerRetPaladin(anchor) and IsOrganizerProtPaladinTank(other) then
-        score = score + 8
+    if IsOrganizerRetPaladin(anchor) then
+        if IsOrganizerProtPaladinTank(other) then
+            score = score + 8
+        elseif IsOrganizerPhysicalDPS(other) or IsOrganizerTank(other) then
+            score = score + 3
+        end
+    end
+
+    if IsOrganizerProtPaladinTank(anchor) then
+        if IsOrganizerElemental(other) then
+            score = score + 12
+        elseif IsOrganizerBoomkin(other) then
+            score = score + 10
+        elseif IsOrganizerCasterDPS(other) then
+            score = score + 4
+        end
     end
 
     if (IsOrganizerCatDruid(anchor) or (IsOrganizerTank(anchor) and anchor.class == "DRUID")) and (IsOrganizerPhysicalDPS(other) or IsOrganizerTank(other)) then
@@ -2387,11 +2405,15 @@ local function ScoreOrganizerGroupByArchetype(group, groupIndex, groupCount)
         score = score + stats.tanks * 6
         score = score + stats.physicalDps * 3
         score = score + stats.warriors * 4
+        score = score + stats.retPaladins * 4
         if stats.warriorOrBearTanks > 0 and stats.enhancement > 0 then
             score = score + 15
         end
+        if stats.warriorOrBearTanks > 0 and stats.enhancement > 0 and stats.rogues > 0 then
+            score = score + 12
+        end
         if stats.protPaladinTanks > 0 and stats.retPaladins > 0 then
-            score = score + 15
+            score = score + 10
         end
         if stats.catDruids > 0 and (stats.physicalDps + stats.tanks) >= 3 then
             score = score + 8
@@ -2414,6 +2436,7 @@ local function ScoreOrganizerGroupByArchetype(group, groupIndex, groupCount)
     elseif info.key == "caster" then
         score = score + stats.elemental * 14
         score = score + stats.boomkins * 12
+        score = score + stats.protPaladinTanks * 8
         score = score + stats.casterDps * 5
         score = score + stats.warlocks * 4
         score = score + stats.mages * 3
@@ -2423,6 +2446,11 @@ local function ScoreOrganizerGroupByArchetype(group, groupIndex, groupCount)
             score = score + 12
         elseif stats.boomkins > 0 and stats.casterDps >= 2 then
             score = score + 10
+        end
+        if stats.protPaladinTanks > 0 and stats.elemental > 0 and stats.boomkins > 0 then
+            score = score + 26
+        elseif stats.protPaladinTanks > 0 and (stats.elemental > 0 or stats.boomkins > 0) then
+            score = score + 12
         end
         score = score - stats.healers * 2
         score = score - stats.physicalDps * 3

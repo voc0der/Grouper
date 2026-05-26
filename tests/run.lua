@@ -63,6 +63,17 @@ local function groupMissingIncludes(plan, index, text)
     return false
 end
 
+local function groupForPlayer(plan, playerName)
+    for groupIndex, group in ipairs(plan.layout or {}) do
+        for _, unit in ipairs(group) do
+            if unit.name == playerName then
+                return groupIndex
+            end
+        end
+    end
+    return nil
+end
+
 test("caster pump groups elemental, boomkin, and three casters", function()
     local players = {
         unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
@@ -164,6 +175,18 @@ test("planning mode respects 20-player raid sizes", function()
     assertEquals(planningContext.configuredSize, 20, "configured size should stay at 20")
     assertEquals(planningContext.rosterSize, 20, "20-player planning scenario should fill to 20")
     assertEquals(planningContext.groupCount, 4, "20-player raids should use four groups")
+end)
+
+test("planning mode puts prot paladin threat with caster support", function()
+    local planningContext = T.BuildOrganizerPlanningContext({ configuredSize = 25, sequence = 3 })
+    local plan = T.BuildSmartOrganizePlan(planningContext)
+
+    assertEquals(groupForPlayer(plan, "Ward"), 3, "prot paladin tank should move to caster support")
+    assertEquals(groupForPlayer(plan, "Nova"), 4, "fire/frost mage should move to mana group")
+    assertEquals(groupForPlayer(plan, "Bloom"), 5, "healer should move to healer overflow")
+    assertEquals(groupForPlayer(plan, "Blade"), 1, "rogue should get Windfury in threat group")
+    assertEquals(groupForPlayer(plan, "Totem"), 1, "enhancement shaman should support threat melee")
+    assertEquals(groupForPlayer(plan, "Aura"), 1, "ret paladin should stay with the threat group")
 end)
 
 local failures = 0

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.52] - 2026-05-26
+
+### Changed
+- Improved Smart Organize planning scores for partial 25-player raids so prot paladin tanks can take the caster-support threat slot, rogues get Windfury threat support, and healers overflow cleanly into the healer group.
+
 ## [1.0.51] - 2026-05-26
 
 ### Changed
@@ -137,7 +142,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.51...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.52...HEAD
+[1.0.52]: https://github.com/voc0der/Grouper/compare/v1.0.51...v1.0.52
 [1.0.51]: https://github.com/voc0der/Grouper/compare/v1.0.50...v1.0.51
 [1.0.50]: https://github.com/voc0der/Grouper/compare/v1.0.49...v1.0.50
 [1.0.49]: https://github.com/voc0der/Grouper/compare/v1.0.48...v1.0.49
