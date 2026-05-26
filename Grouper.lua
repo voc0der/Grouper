@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.59"
+Grouper.version = "1.0.60"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -2336,18 +2336,8 @@ end
 
 local function GetOrganizerFillScenario(configuredSize, sequence)
     local scenarios = GetOrganizerPlanningScenarios(configuredSize)
-    local candidates = {}
-    local targetSize = Clamp(configuredSize or 25, RAID_GROUP_SIZE, 40)
-    for _, scenario in ipairs(scenarios) do
-        if #(scenario.players or {}) >= targetSize then
-            candidates[#candidates + 1] = scenario
-        end
-    end
-    if #candidates == 0 then
-        candidates = scenarios
-    end
     sequence = math.max(1, SafeNumber(sequence, 1))
-    return candidates[((sequence - 1) % #candidates) + 1]
+    return scenarios[((sequence - 1) % #scenarios) + 1]
 end
 
 local function GetOrganizerPlanningSubgroup(playerIndex, sequence, groupCount)
@@ -3655,6 +3645,151 @@ function Grouper:GenerateSmartAdvertiserMessage(bossName, config)
     return self:GenerateSmartAdvertiserMessageForContext(bossName, config, context, { hrItem = activeSession.hr })
 end
 
+local SMART_ADVERTISER_FILL_PATTERNS = {
+    { "physical", "caster", "healer", "tank", "physical", "caster", "physical", "healer", "caster", "physical", "tank", "caster", "healer", "physical", "caster", "healer", "physical", "tank", "caster", "healer", "physical", "caster", "healer", "physical", "caster" },
+    { "physical", "caster", "tank", "physical", "healer", "physical", "caster", "physical", "healer", "caster", "tank", "physical", "caster", "healer", "physical", "caster", "healer", "physical", "tank", "healer", "caster", "physical", "healer", "caster", "physical" },
+    { "caster", "physical", "healer", "physical", "tank", "caster", "physical", "healer", "caster", "physical", "tank", "healer", "caster", "physical", "caster", "healer", "physical", "tank", "caster", "healer", "physical", "caster", "healer", "physical", "caster" },
+}
+
+local SMART_ADVERTISER_FILL_FALLBACKS = {
+    physical = { "physical", "caster", "healer", "dps", "tank" },
+    caster = { "caster", "physical", "healer", "dps", "tank" },
+    healer = { "healer", "caster", "physical", "dps", "tank" },
+    tank = { "tank", "healer", "physical", "caster", "dps" },
+    dps = { "dps", "physical", "caster", "healer", "tank" },
+}
+
+local SMART_ADVERTISER_FILL_NAMES = {
+    tank = { "Rampart", "Shieldline", "Stoneguard", "Oakhide", "Sunwall" },
+    healer = { "Mendwell", "Tidecall", "Bloomlight", "Beaconry", "Renewal" },
+    caster = { "Spellwake", "Hexflare", "Starweave", "Mindlace", "Arcanix" },
+    physical = { "Steelstep", "Arrowfall", "Quickblade", "Catclaw", "Axehand" },
+    dps = { "Raidhope", "Latejoin", "Backup", "Standby", "Fillspot" },
+}
+
+local function CopySmartAdvertiserFillEntry(entry, fallbackName)
+    entry = entry or {}
+    return {
+        name = entry.name or fallbackName or "Applicant",
+        class = entry.class,
+        role = entry.role,
+        spec = entry.spec,
+        mainTank = entry.mainTank == true,
+    }
+end
+
+local function SmartAdvertiserFillEntryBucket(entry)
+    local role = RoleFromSpec(entry and entry.class, entry and entry.spec, entry and entry.role)
+    if role == ROLE_TANK then
+        return "tank"
+    end
+    if role == ROLE_HEALER then
+        return "healer"
+    end
+
+    local unit = {
+        class = entry and entry.class,
+        role = role,
+        spec = entry and entry.spec,
+    }
+    if IsOrganizerCasterDPS(unit) then
+        return "caster"
+    end
+    if IsOrganizerPhysicalDPS(unit) then
+        return "physical"
+    end
+    return "dps"
+end
+
+local function BuildSmartAdvertiserFillCandidateEntry(label, index)
+    local candidate = SmartAdvertiserCandidateForLabel(label) or SMART_ADVERTISER_CANDIDATES[((index - 1) % #SMART_ADVERTISER_CANDIDATES) + 1]
+    local bucket = candidate.bucket or (NormalizeOrganizerRole(candidate.role) == ROLE_TANK and "tank") or (NormalizeOrganizerRole(candidate.role) == ROLE_HEALER and "healer") or "dps"
+    local names = SMART_ADVERTISER_FILL_NAMES[bucket] or SMART_ADVERTISER_FILL_NAMES.dps
+    return {
+        name = names[((index - 1) % #names) + 1] .. tostring(index),
+        class = candidate.class,
+        role = candidate.role,
+        spec = candidate.spec,
+        mainTank = NormalizeOrganizerRole(candidate.role) == ROLE_TANK,
+    }
+end
+
+local function BuildSmartAdvertiserFillOrder(players, sequence)
+    local buckets = {
+        tank = {},
+        healer = {},
+        caster = {},
+        physical = {},
+        dps = {},
+    }
+    for _, entry in ipairs(players or {}) do
+        local bucket = SmartAdvertiserFillEntryBucket(entry)
+        buckets[bucket][#buckets[bucket] + 1] = entry
+    end
+
+    local function remaining()
+        local count = 0
+        for _, bucket in pairs(buckets) do
+            count = count + #bucket
+        end
+        return count
+    end
+
+    local function take(preferred)
+        for _, bucketName in ipairs(SMART_ADVERTISER_FILL_FALLBACKS[preferred] or SMART_ADVERTISER_FILL_FALLBACKS.dps) do
+            if #buckets[bucketName] > 0 then
+                return table.remove(buckets[bucketName], 1)
+            end
+        end
+        return nil
+    end
+
+    local ordered = {}
+    local pattern = SMART_ADVERTISER_FILL_PATTERNS[((math.max(1, sequence or 1) - 1) % #SMART_ADVERTISER_FILL_PATTERNS) + 1]
+    local index = 1
+    while remaining() > 0 do
+        local preferred = pattern[((index - 1) % #pattern) + 1]
+        local entry = take(preferred)
+        if not entry then
+            break
+        end
+        ordered[#ordered + 1] = entry
+        index = index + 1
+    end
+    return ordered
+end
+
+function Grouper:BuildSmartAdvertiserFillScenario(baseScenario, configuredSize, sequence, config)
+    local players = {}
+    for index, entry in ipairs(baseScenario and baseScenario.players or {}) do
+        players[#players + 1] = CopySmartAdvertiserFillEntry(entry, "Fill" .. tostring(index))
+    end
+
+    local targetSize = Clamp(configuredSize or 25, RAID_GROUP_SIZE, 40)
+    local safety = 0
+    while #players < targetSize and safety < 40 do
+        safety = safety + 1
+        local context = self:BuildOrganizerPlanningContext({
+            configuredSize = targetSize,
+            sequence = sequence,
+            scenario = {
+                name = baseScenario and baseScenario.name or "fill sim",
+                players = players,
+            },
+            rosterSize = #players,
+        })
+        local labels = self:SelectSmartAdvertiserCandidates(context, config or {}, 1)
+        players[#players + 1] = BuildSmartAdvertiserFillCandidateEntry(labels[1], #players + 1)
+    end
+
+    return {
+        name = baseScenario and baseScenario.name or "fill sim",
+        configuredSize = configuredSize,
+        rosterSize = math.min(targetSize, #players),
+        players = BuildSmartAdvertiserFillOrder(players, sequence),
+    }
+end
+
 function Grouper:GetSmartAdvertiserSimulationBoss(configuredSize)
     local bossName = activeSession.active and activeSession.boss or (configFrame and configFrame.selectedBoss) or nil
     local config = bossName and self:GetBossConfig(bossName) or nil
@@ -3697,7 +3832,8 @@ function Grouper:BuildSmartAdvertiserFillState(options)
     end
     configuredSize = Clamp(config.size or configuredSize, RAID_GROUP_SIZE, 40)
 
-    local scenario = options.scenario or GetOrganizerFillScenario(configuredSize, sequence)
+    local baseScenario = options.scenario or GetOrganizerFillScenario(configuredSize, sequence)
+    local scenario = self:BuildSmartAdvertiserFillScenario(baseScenario, configuredSize, sequence, config)
     local targetSize = math.min(configuredSize, #(scenario.players or {}))
     local startSize = options.startSize or math.max(3, math.floor(targetSize * 0.16))
     startSize = Clamp(startSize, 1, targetSize)

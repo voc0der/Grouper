@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.60] - 2026-05-26
+
+### Changed
+- Fill simulations now top up and reorder sample scenarios for recruitment order so tank, healer, caster, and melee shortages can surface instead of inheriting tank-first optimizer fixtures.
+
 ## [1.0.59] - 2026-05-26
 
 ### Changed
