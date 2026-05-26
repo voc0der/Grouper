@@ -352,7 +352,7 @@ test("smart advertiser flags caster priority when melee is frontloaded", functio
     })
     local msg12 = T.GenerateSmartAdvertiserMessageForContext("Magtheridon's Lair", { size = 25, tanks = 3, healers = 6 }, context12)
 
-    assertEquals(msg12, "LFM Mag 12/25 - need caster dps", "melee-heavy partial raids should advertise caster DPS preference")
+    assertEquals(msg12, "LFM Mag 12/25 - need heals + caster dps", "melee-heavy partial raids should advertise caster DPS and healer needs together")
 
     local context18 = T.BuildOrganizerPlanningContext({
         configuredSize = 25,
@@ -439,7 +439,7 @@ test("fill simulation logs ads and finishes with a scored comp", function()
     assertEquals(plan.rosterSize, 25, "final fill sim plan should contain the full raid")
     assertTrue(plan.score ~= nil, "final fill sim plan should have a Smart Organize score")
     assertTrue(logIncludes(plan.fillLog, "Join:"), "fill sim should log joins")
-    assertTrue(logIncludes(plan.fillLog, "caster dps"), "fill sim should show caster priority when the sample fill is melee-heavy")
+    assertTrue(logIncludes(plan.fillLog, "heals + caster dps"), "fill sim should steer healer and caster DPS needs together when the sample fill is melee-heavy")
     assertTrue(logIncludes(plan.fillLog, "Final score"), "fill sim should log the final score")
 end)
 

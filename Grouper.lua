@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.58"
+Grouper.version = "1.0.59"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -820,6 +820,18 @@ local function SmartAdvertiserMixedRoleNeedText(needs)
     return SmartAdvertiserJoinNeeds(parts)
 end
 
+local function SmartAdvertiserMixedPriorityNeedText(needs, dpsPriority)
+    local parts = {}
+    if (needs.tanksNeeded or 0) > 0 then
+        parts[#parts + 1] = (needs.tanksNeeded or 0) > 1 and "tanks" or "tank"
+    end
+    if (needs.healersNeeded or 0) > 0 then
+        parts[#parts + 1] = "heals"
+    end
+    parts[#parts + 1] = dpsPriority
+    return SmartAdvertiserJoinNeeds(parts)
+end
+
 local function SmartAdvertiserNeedText(needs)
     if not needs or (needs.openSlots or 0) <= 0 then
         return nil
@@ -834,7 +846,7 @@ local function SmartAdvertiserNeedText(needs)
         if roleBucketCount > 1 then
             local dpsPriority = SmartAdvertiserDpsPriorityText(needs)
             if dpsPriority then
-                return dpsPriority
+                return SmartAdvertiserMixedPriorityNeedText(needs, dpsPriority)
             end
             if (needs.openSlots or 0) <= 8 then
                 return SmartAdvertiserMixedRoleNeedText(needs)
