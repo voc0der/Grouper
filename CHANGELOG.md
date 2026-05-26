@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.51] - 2026-05-26
+
+### Changed
+- Reissued the Smart Organize planning-mode update as a fresh CurseForge package so non-raid clicks open the simulated planning preview.
+- Hardened release packaging so the packager is fetched during the workflow and release uploads use the configured release token.
+
 ## [1.0.50] - 2026-05-26
 
 ### Added
@@ -131,7 +137,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.50...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.51...HEAD
+[1.0.51]: https://github.com/voc0der/Grouper/compare/v1.0.50...v1.0.51
 [1.0.50]: https://github.com/voc0der/Grouper/compare/v1.0.49...v1.0.50
 [1.0.49]: https://github.com/voc0der/Grouper/compare/v1.0.48...v1.0.49
 [1.0.48]: https://github.com/voc0der/Grouper/compare/v1.0.47...v1.0.48
