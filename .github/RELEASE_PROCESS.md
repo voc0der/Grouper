@@ -1,81 +1,27 @@
 # Release Process
 
+Canonical release instructions live in [RELEASING.md](../RELEASING.md).
+
 ## Automated Process
 
-Every push to `main` triggers an automatic release via GitHub Actions:
-- Auto-increments the patch version (e.g., v1.0.12 → v1.0.13)
-- Extracts release notes from CHANGELOG.md [Unreleased] section
-- Creates a GitHub release with formatted notes
-- Builds and attaches `Grouper.zip` to the release
+Every push to `main` runs the tag workflow:
 
-**The release notes come directly from CHANGELOG.md**, so keep the [Unreleased] section updated!
+- Reads `## Version:` from `Grouper.toc`
+- Creates `v<version>` if that tag does not already exist
+- Tag pushes trigger the BigWigs packager release workflow
+- The release workflow verifies runtime-only package contents before upload
 
-## Manual Steps (For Major/Minor Releases or Enhanced Notes)
+The workflow does not auto-increment versions. Bump `Grouper.toc`, `Grouper.lua`, and `CHANGELOG.md` intentionally before merging a release commit.
 
-### 1. Update CHANGELOG.md
+## PR Artifacts
 
-Before committing changes, update [CHANGELOG.md](../CHANGELOG.md):
-
-```markdown
-## [Unreleased]
-
-### Added
-- New feature description
-
-### Changed
-- Changed feature description
-
-### Fixed
-- Bug fix description
-```
-
-### 2. Commit and Push
-
-```bash
-git add CHANGELOG.md
-git commit -m "Update changelog for release"
-git push
-```
-
-### 3. Create Manual Release (Optional)
-
-If you want custom release notes instead of auto-generated:
-
-1. Go to https://github.com/voc0der/Grouper/releases
-2. Click "Draft a new release"
-3. Choose the auto-created tag or create a new one
-4. Copy content from CHANGELOG.md [Unreleased] section
-5. Use [RELEASE_TEMPLATE.md](RELEASE_TEMPLATE.md) as a guide
-6. Publish release
-
-### 4. Update CHANGELOG.md After Release
-
-Move [Unreleased] content to a new version section:
-
-```markdown
-## [Unreleased]
-
-## [1.0.13] - 2026-01-05
-
-### Added
-- Feature that was added
-
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.13...HEAD
-[1.0.13]: https://github.com/voc0der/Grouper/releases/tag/v1.0.13
-```
-
-## Version Numbering
-
-Following [Semantic Versioning](https://semver.org/):
-- **MAJOR** (v2.0.0): Breaking changes, incompatible API changes
-- **MINOR** (v1.1.0): New features, backwards-compatible
-- **PATCH** (v1.0.1): Bug fixes, backwards-compatible
+Pull requests run the package workflow and tests. Add the `build` label to have the companion workflow post a downloadable addon artifact comment on the PR.
 
 ## Quick Checklist
 
-- [ ] Update CHANGELOG.md with changes
-- [ ] Test the addon in-game
-- [ ] Commit changes with descriptive message
-- [ ] Push to main (triggers auto-release)
-- [ ] Verify release on GitHub
-- [ ] Update CHANGELOG.md to move [Unreleased] to new version
+- [ ] Update `CHANGELOG.md` under `[Unreleased]`
+- [ ] Run `luac -p Grouper.lua tests/run.lua`
+- [ ] Run `lua tests/run.lua`
+- [ ] Run `bash ./.github/scripts/verify-release-package.sh` for packaging changes
+- [ ] Bump version metadata when preparing an actual release
+- [ ] Push or merge to `main` and verify the tag/release workflows

@@ -1,6 +1,7 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
 Grouper.version = "1.0.47"
+Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
 local isClassic = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
@@ -175,6 +176,8 @@ local buttonContainer = nil
 local configFrame = nil
 local minimapButton = nil
 local killLogFrame = nil
+local smartOrganizeFrame = nil
+local smartOrganizeSpecFrame = nil
 local topFrameLevel = 100 -- Track highest frame level for proper z-ordering
 
 -- Version checking data
@@ -217,6 +220,323 @@ local function ApplyElvUISkin(frame, frameType)
     end
 end
 
+-- Raid Organizer constants and helpers
+local ROLE_TANK = "TANK"
+local ROLE_HEALER = "HEALER"
+local ROLE_DAMAGER = "DAMAGER"
+local ROLE_NONE = "NONE"
+
+local RAID_ORGANIZER_SPEC_PREFIX = "GrouperSpec"
+local RAID_ORGANIZER_SPEC_VERSION = 1
+local RAID_GROUP_SIZE = 5
+
+local ORGANIZER_GROUPS = {
+    [1] = { key = "threat", label = "MT threat group" },
+    [2] = { key = "physical", label = "Physical DPS group" },
+    [3] = { key = "caster", label = "Caster pump group" },
+    [4] = { key = "mana", label = "Shadow priest mana group" },
+    [5] = { key = "healer", label = "Healer / overflow group" },
+}
+
+local CLASS_LABELS = {
+    WARRIOR = "Warrior",
+    PALADIN = "Paladin",
+    HUNTER = "Hunter",
+    ROGUE = "Rogue",
+    PRIEST = "Priest",
+    SHAMAN = "Shaman",
+    MAGE = "Mage",
+    WARLOCK = "Warlock",
+    DRUID = "Druid",
+}
+
+local SPEC_LABELS = {
+    PROTECTION = "Protection",
+    HOLY = "Holy",
+    RETRIBUTION = "Retribution",
+    ARMS = "Arms",
+    FURY = "Fury",
+    FERAL_TANK = "Feral Tank",
+    FERAL = "Feral",
+    BALANCE = "Balance",
+    RESTORATION = "Restoration",
+    SHADOW = "Shadow",
+    DISCIPLINE = "Discipline",
+    ELEMENTAL = "Elemental",
+    ENHANCEMENT = "Enhancement",
+    BEAST_MASTERY = "Beast Mastery",
+    MARKSMANSHIP = "Marksmanship",
+    SURVIVAL = "Survival",
+    ARCANE = "Arcane",
+    MAGE_CASTER = "Fire/Frost",
+    WARLOCK_CASTER = "Caster",
+    ROGUE_DPS = "DPS",
+    WARRIOR_DPS = "DPS",
+    HUNTER_UNKNOWN = "Unknown Hunter",
+}
+
+local ORGANIZER_MANUAL_CHOICES = {
+    WARRIOR = {
+        { label = "Tank", role = ROLE_TANK, spec = "PROTECTION" },
+        { label = "Arms", role = ROLE_DAMAGER, spec = "ARMS" },
+        { label = "Fury", role = ROLE_DAMAGER, spec = "FURY" },
+    },
+    PRIEST = {
+        { label = "Healer", role = ROLE_HEALER, spec = "HOLY" },
+        { label = "Shadow", role = ROLE_DAMAGER, spec = "SHADOW" },
+    },
+    DRUID = {
+        { label = "Bear", role = ROLE_TANK, spec = "FERAL_TANK" },
+        { label = "Cat", role = ROLE_DAMAGER, spec = "FERAL" },
+        { label = "Balance", role = ROLE_DAMAGER, spec = "BALANCE" },
+        { label = "Resto", role = ROLE_HEALER, spec = "RESTORATION" },
+    },
+    PALADIN = {
+        { label = "Prot", role = ROLE_TANK, spec = "PROTECTION" },
+        { label = "Ret", role = ROLE_DAMAGER, spec = "RETRIBUTION" },
+        { label = "Holy", role = ROLE_HEALER, spec = "HOLY" },
+    },
+    SHAMAN = {
+        { label = "Enh", role = ROLE_DAMAGER, spec = "ENHANCEMENT" },
+        { label = "Ele", role = ROLE_DAMAGER, spec = "ELEMENTAL" },
+        { label = "Resto", role = ROLE_HEALER, spec = "RESTORATION" },
+    },
+    HUNTER = {
+        { label = "BM", role = ROLE_DAMAGER, spec = "BEAST_MASTERY" },
+        { label = "Marks", role = ROLE_DAMAGER, spec = "MARKSMANSHIP" },
+        { label = "Survival", role = ROLE_DAMAGER, spec = "SURVIVAL" },
+    },
+    MAGE = {
+        { label = "Arcane", role = ROLE_DAMAGER, spec = "ARCANE" },
+        { label = "Fire/Frost", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+    },
+}
+
+local LOCAL_TALENT_TAB_SPECS = {
+    WARRIOR = { "ARMS", "FURY", "PROTECTION" },
+    PALADIN = { "HOLY", "PROTECTION", "RETRIBUTION" },
+    HUNTER = { "BEAST_MASTERY", "MARKSMANSHIP", "SURVIVAL" },
+    PRIEST = { "DISCIPLINE", "HOLY", "SHADOW" },
+    SHAMAN = { "ELEMENTAL", "ENHANCEMENT", "RESTORATION" },
+    MAGE = { "ARCANE", "MAGE_CASTER", "MAGE_CASTER" },
+    WARLOCK = { "WARLOCK_CASTER", "WARLOCK_CASTER", "WARLOCK_CASTER" },
+    DRUID = { "BALANCE", "FERAL", "RESTORATION" },
+    ROGUE = { "ROGUE_DPS", "ROGUE_DPS", "ROGUE_DPS" },
+}
+
+local function PrintGrouper(message, color)
+    local prefix = "|cff00ff00[Grouper]|r "
+    if color then
+        prefix = color .. "[Grouper]|r "
+    end
+    print(prefix .. tostring(message))
+end
+
+local function SafeNumber(value, fallback)
+    value = tonumber(value)
+    if value == nil then
+        return fallback or 0
+    end
+    return value
+end
+
+local function Clamp(value, minimum, maximum)
+    if value < minimum then return minimum end
+    if value > maximum then return maximum end
+    return value
+end
+
+local function RemoveRealmName(name)
+    if not name then return nil end
+    return string.match(name, "^([^-]+)") or name
+end
+
+local function UnitNamesMatch(left, right)
+    if not left or not right then return false end
+    if left == right then return true end
+    return RemoveRealmName(left) == RemoveRealmName(right)
+end
+
+local function NormalizeOrganizerRole(role)
+    if role == "MAINTANK" then
+        return ROLE_TANK
+    elseif role == "MAINASSIST" then
+        return ROLE_DAMAGER
+    elseif role == ROLE_TANK or role == ROLE_HEALER or role == ROLE_DAMAGER then
+        return role
+    end
+    return ROLE_NONE
+end
+
+local function RoleLabel(role)
+    role = NormalizeOrganizerRole(role)
+    if role == ROLE_TANK then return "Tank" end
+    if role == ROLE_HEALER then return "Healer" end
+    if role == ROLE_DAMAGER then return "DPS" end
+    return "Unassigned"
+end
+
+local function SpecLabel(spec)
+    return SPEC_LABELS[spec] or spec or "Unknown"
+end
+
+local function ClassLabel(classFile)
+    return CLASS_LABELS[classFile] or classFile or "Unknown"
+end
+
+local function AddName(list, unit)
+    if unit and unit.name then
+        list[#list + 1] = unit.name
+    end
+end
+
+local function JoinNames(list)
+    if not list or #list == 0 then
+        return ""
+    end
+    return table.concat(list, ", ")
+end
+
+local function CountListText(count, singular, plural)
+    if count == 1 then
+        return "1 " .. singular
+    end
+    return tostring(count) .. " " .. (plural or (singular .. "s"))
+end
+
+local function IsOrganizerSpec(unit, spec)
+    return unit and unit.spec == spec
+end
+
+local function IsOrganizerTank(unit)
+    return NormalizeOrganizerRole(unit and unit.role) == ROLE_TANK
+end
+
+local function IsOrganizerHealer(unit)
+    return NormalizeOrganizerRole(unit and unit.role) == ROLE_HEALER
+end
+
+local function IsOrganizerDamager(unit)
+    return NormalizeOrganizerRole(unit and unit.role) == ROLE_DAMAGER
+end
+
+local function IsOrganizerWarriorOrBearTank(unit)
+    if not IsOrganizerTank(unit) then
+        return false
+    end
+    return unit.class == "WARRIOR" or unit.class == "DRUID"
+end
+
+local function IsOrganizerProtPaladinTank(unit)
+    return IsOrganizerTank(unit) and unit.class == "PALADIN"
+end
+
+local function IsOrganizerEnhancement(unit)
+    return unit and unit.class == "SHAMAN" and unit.spec == "ENHANCEMENT"
+end
+
+local function IsOrganizerElemental(unit)
+    return unit and unit.class == "SHAMAN" and unit.spec == "ELEMENTAL"
+end
+
+local function IsOrganizerRestoShaman(unit)
+    return unit and unit.class == "SHAMAN" and IsOrganizerHealer(unit)
+end
+
+local function IsOrganizerBoomkin(unit)
+    return unit and unit.class == "DRUID" and unit.spec == "BALANCE"
+end
+
+local function IsOrganizerShadowPriest(unit)
+    return unit and unit.class == "PRIEST" and unit.spec == "SHADOW"
+end
+
+local function IsOrganizerRetPaladin(unit)
+    return unit and unit.class == "PALADIN" and unit.spec == "RETRIBUTION"
+end
+
+local function IsOrganizerCatDruid(unit)
+    return unit and unit.class == "DRUID" and unit.spec == "FERAL" and IsOrganizerDamager(unit)
+end
+
+local function IsOrganizerArcaneMage(unit)
+    return unit and unit.class == "MAGE" and unit.spec == "ARCANE"
+end
+
+local function IsOrganizerHunter(unit)
+    return unit and unit.class == "HUNTER"
+end
+
+local function IsOrganizerPremiumShaman(unit)
+    return IsOrganizerEnhancement(unit) or IsOrganizerElemental(unit)
+end
+
+local function IsOrganizerCasterDPS(unit)
+    if not unit or not IsOrganizerDamager(unit) then
+        return false
+    end
+    if unit.class == "MAGE" or unit.class == "WARLOCK" then
+        return true
+    end
+    return IsOrganizerElemental(unit) or IsOrganizerBoomkin(unit) or IsOrganizerShadowPriest(unit)
+end
+
+local function IsOrganizerPhysicalDPS(unit)
+    if not unit or not IsOrganizerDamager(unit) then
+        return false
+    end
+    if unit.class == "ROGUE" or unit.class == "HUNTER" then
+        return true
+    end
+    if unit.class == "WARRIOR" then
+        return true
+    end
+    return IsOrganizerEnhancement(unit) or IsOrganizerRetPaladin(unit) or IsOrganizerCatDruid(unit)
+end
+
+local function IsOrganizerManaUser(unit)
+    if not unit then return false end
+    if IsOrganizerHealer(unit) then return true end
+    if unit.class == "MAGE" then return true end
+    if IsOrganizerCasterDPS(unit) and unit.class ~= "WARLOCK" then return true end
+    return false
+end
+
+local function RoleFromSpec(classFile, spec, assignedRole)
+    assignedRole = NormalizeOrganizerRole(assignedRole)
+    if assignedRole ~= ROLE_NONE then
+        return assignedRole
+    end
+    if spec == "PROTECTION" or spec == "FERAL_TANK" then
+        return ROLE_TANK
+    elseif spec == "RESTORATION" or (spec == "HOLY" and classFile ~= "PRIEST") then
+        return ROLE_HEALER
+    elseif classFile == "PRIEST" and (spec == "HOLY" or spec == "DISCIPLINE") then
+        return ROLE_HEALER
+    end
+    return ROLE_DAMAGER
+end
+
+local function SpecFromAssignedRole(classFile, role)
+    role = NormalizeOrganizerRole(role)
+    if role == ROLE_TANK then
+        if classFile == "WARRIOR" then return "PROTECTION" end
+        if classFile == "PALADIN" then return "PROTECTION" end
+        if classFile == "DRUID" then return "FERAL_TANK" end
+    elseif role == ROLE_HEALER then
+        if classFile == "PRIEST" then return "HOLY" end
+        if classFile == "PALADIN" then return "HOLY" end
+        if classFile == "DRUID" or classFile == "SHAMAN" then return "RESTORATION" end
+    elseif role == ROLE_DAMAGER then
+        if classFile == "PRIEST" then return "SHADOW" end
+        if classFile == "PALADIN" then return "RETRIBUTION" end
+        if classFile == "ROGUE" then return "ROGUE_DPS" end
+        if classFile == "WARLOCK" then return "WARLOCK_CASTER" end
+        if classFile == "WARRIOR" then return "WARRIOR_DPS" end
+    end
+    return nil
+end
+
 -- Initialize saved variables
 function Grouper:InitDB()
     if not GrouperDB then
@@ -245,6 +565,16 @@ function Grouper:InitDB()
 
     if not GrouperDB.bossKills then
         GrouperDB.bossKills = {}
+    end
+
+    if type(GrouperDB.raidOrganizer) ~= "table" then
+        GrouperDB.raidOrganizer = {}
+    end
+    if type(GrouperDB.raidOrganizer.specs) ~= "table" then
+        GrouperDB.raidOrganizer.specs = {}
+    end
+    if type(GrouperDB.raidOrganizer.lockedPlayers) ~= "table" then
+        GrouperDB.raidOrganizer.lockedPlayers = {}
     end
 
     if GrouperDB.minimapButton == nil then
@@ -290,6 +620,340 @@ function Grouper:InitDB()
             suppressedVersion = nil,
         }
     end
+end
+
+function Grouper:EnsureRaidOrganizerDB()
+    if not GrouperDB then
+        GrouperDB = {}
+    end
+    if type(GrouperDB.raidOrganizer) ~= "table" then
+        GrouperDB.raidOrganizer = {}
+    end
+    if type(GrouperDB.raidOrganizer.specs) ~= "table" then
+        GrouperDB.raidOrganizer.specs = {}
+    end
+    if type(GrouperDB.raidOrganizer.lockedPlayers) ~= "table" then
+        GrouperDB.raidOrganizer.lockedPlayers = {}
+    end
+    return GrouperDB.raidOrganizer
+end
+
+function Grouper:GetOrganizerManualChoice(unit)
+    if not unit then return nil end
+    local db = self:EnsureRaidOrganizerDB()
+    return db.specs[unit.key] or db.specs[unit.fullName] or db.specs[unit.name]
+end
+
+function Grouper:SaveOrganizerManualChoice(unit, choice)
+    if not unit or not choice then return end
+    local db = self:EnsureRaidOrganizerDB()
+    db.specs[unit.key or unit.fullName or unit.name] = {
+        role = choice.role,
+        spec = choice.spec,
+        label = choice.label,
+    }
+end
+
+function Grouper:ApplyOrganizerManualChoice(unit)
+    local choice = self:GetOrganizerManualChoice(unit)
+    if type(choice) ~= "table" then
+        if type(choice) == "string" then
+            unit.spec = choice
+        end
+        return false
+    end
+    if choice.role then
+        unit.role = NormalizeOrganizerRole(choice.role)
+    end
+    if choice.spec then
+        unit.spec = choice.spec
+    end
+    unit.manual = true
+    return true
+end
+
+function Grouper:GetOrganizerChoiceList(unit)
+    if not unit then return nil end
+    local choices = ORGANIZER_MANUAL_CHOICES[unit.class]
+    if not choices then return nil end
+
+    local role = NormalizeOrganizerRole(unit.role)
+    if role == ROLE_TANK or role == ROLE_HEALER then
+        local filtered = {}
+        for _, choice in ipairs(choices) do
+            if NormalizeOrganizerRole(choice.role) == role then
+                filtered[#filtered + 1] = choice
+            end
+        end
+        if #filtered > 0 then
+            return filtered
+        end
+    elseif role == ROLE_DAMAGER then
+        local filtered = {}
+        for _, choice in ipairs(choices) do
+            if NormalizeOrganizerRole(choice.role) == ROLE_DAMAGER then
+                filtered[#filtered + 1] = choice
+            end
+        end
+        if #filtered > 0 then
+            return filtered
+        end
+    end
+
+    return choices
+end
+
+function Grouper:ReadLocalOrganizerSpec()
+    if not UnitClass then return nil end
+    local _, classFile = UnitClass("player")
+    local tabSpecs = classFile and LOCAL_TALENT_TAB_SPECS[classFile]
+    if not tabSpecs then return nil end
+
+    local activeGroup = 1
+    if GetActiveTalentGroup then
+        activeGroup = GetActiveTalentGroup() or 1
+    end
+
+    local bestTab = 1
+    local bestPoints = -1
+    local numTabs = (GetNumTalentTabs and GetNumTalentTabs()) or 3
+    for tab = 1, numTabs do
+        local pointsSpent = 0
+        if GetTalentTabInfo then
+            local _, _, _, _, points = GetTalentTabInfo(tab, false, false, activeGroup)
+            pointsSpent = points or 0
+        end
+        if pointsSpent > bestPoints then
+            bestPoints = pointsSpent
+            bestTab = tab
+        end
+    end
+
+    local assignedRole = ROLE_NONE
+    if UnitGroupRolesAssigned then
+        assignedRole = NormalizeOrganizerRole(UnitGroupRolesAssigned("player"))
+    end
+
+    local spec = tabSpecs[bestTab]
+    if classFile == "DRUID" and spec == "FERAL" and assignedRole == ROLE_TANK then
+        spec = "FERAL_TANK"
+    end
+
+    return {
+        class = classFile,
+        role = RoleFromSpec(classFile, spec, assignedRole),
+        spec = spec,
+    }
+end
+
+function Grouper:BroadcastOrganizerSpec()
+    if not C_ChatInfo or not C_ChatInfo.SendAddonMessage then return end
+    local specData = self:ReadLocalOrganizerSpec()
+    if not specData or not specData.spec then return end
+
+    local channel
+    if IsInRaid and IsInRaid() then
+        channel = "RAID"
+    elseif IsInGroup and IsInGroup() then
+        channel = "PARTY"
+    end
+    if not channel then return end
+
+    local message = string.format("SPEC:%s|R:%s|C:%s|v:%d",
+        specData.spec,
+        specData.role or ROLE_NONE,
+        specData.class or "",
+        RAID_ORGANIZER_SPEC_VERSION)
+    C_ChatInfo.SendAddonMessage(RAID_ORGANIZER_SPEC_PREFIX, message, channel)
+end
+
+function Grouper:HandleOrganizerSpecMessage(sender, message)
+    if not sender or not message then return end
+    local spec = string.match(message, "SPEC:([^|]+)")
+    if not spec then return end
+
+    self.peerSpecs = self.peerSpecs or {}
+    local name = RemoveRealmName(sender)
+    self.peerSpecs[name] = {
+        spec = spec,
+        role = NormalizeOrganizerRole(string.match(message, "|R:([^|]+)") or ROLE_NONE),
+        class = string.match(message, "|C:([^|]+)"),
+        version = SafeNumber(string.match(message, "|v:(%d+)"), 0),
+    }
+end
+
+function Grouper:ApplyOrganizerKnownSpec(unit)
+    if not unit then return end
+
+    self:ApplyOrganizerManualChoice(unit)
+
+    local playerName = UnitName and UnitName("player")
+    if playerName and UnitNamesMatch(unit.name, playerName) then
+        local localSpec = self:ReadLocalOrganizerSpec()
+        if localSpec and localSpec.spec and localSpec.class == unit.class then
+            unit.spec = localSpec.spec
+            if NormalizeOrganizerRole(unit.role) == ROLE_NONE then
+                unit.role = localSpec.role
+            end
+            unit.localSpec = true
+        end
+    end
+
+    local peer = self.peerSpecs and self.peerSpecs[unit.name]
+    if peer and peer.spec and (not peer.class or peer.class == "" or peer.class == unit.class) then
+        unit.spec = peer.spec
+        if NormalizeOrganizerRole(unit.role) == ROLE_NONE and peer.role and peer.role ~= ROLE_NONE then
+            unit.role = peer.role
+        end
+        unit.peerSpec = true
+    end
+
+    if not unit.spec then
+        unit.spec = SpecFromAssignedRole(unit.class, unit.role)
+    end
+end
+
+function Grouper:ApplyOrganizerGuess(unit)
+    if not unit then return end
+    local role = NormalizeOrganizerRole(unit.role)
+
+    if role == ROLE_NONE then
+        if unit.mainTank then
+            role = ROLE_TANK
+        elseif unit.class == "PRIEST" or unit.class == "PALADIN" or unit.class == "DRUID" or unit.class == "SHAMAN" then
+            role = ROLE_DAMAGER
+        else
+            role = ROLE_DAMAGER
+        end
+        unit.role = role
+        unit.guessed = true
+    end
+
+    if not unit.spec then
+        if role == ROLE_TANK or role == ROLE_HEALER then
+            unit.spec = SpecFromAssignedRole(unit.class, role)
+        elseif unit.class == "SHAMAN" then
+            unit.spec = "ENHANCEMENT"
+        elseif unit.class == "DRUID" then
+            unit.spec = "FERAL"
+        elseif unit.class == "PALADIN" then
+            unit.spec = "RETRIBUTION"
+        elseif unit.class == "PRIEST" then
+            unit.spec = "SHADOW"
+        elseif unit.class == "MAGE" then
+            unit.spec = "MAGE_CASTER"
+        elseif unit.class == "HUNTER" then
+            unit.spec = "HUNTER_UNKNOWN"
+        elseif unit.class == "WARRIOR" then
+            unit.spec = "WARRIOR_DPS"
+        elseif unit.class == "WARLOCK" then
+            unit.spec = "WARLOCK_CASTER"
+        elseif unit.class == "ROGUE" then
+            unit.spec = "ROGUE_DPS"
+        end
+        unit.guessed = true
+    end
+end
+
+function Grouper:UpdateOrganizerTags(unit)
+    if not unit then return unit end
+    unit.role = NormalizeOrganizerRole(unit.role)
+
+    if unit.mainTank and unit.role == ROLE_NONE then
+        unit.role = ROLE_TANK
+    end
+
+    unit.isTank = IsOrganizerTank(unit)
+    unit.isHealer = IsOrganizerHealer(unit)
+    unit.isDamager = IsOrganizerDamager(unit)
+    unit.isEnhancement = IsOrganizerEnhancement(unit)
+    unit.isElemental = IsOrganizerElemental(unit)
+    unit.isRestoShaman = IsOrganizerRestoShaman(unit)
+    unit.isBoomkin = IsOrganizerBoomkin(unit)
+    unit.isShadowPriest = IsOrganizerShadowPriest(unit)
+    unit.isRetPaladin = IsOrganizerRetPaladin(unit)
+    unit.isCatDruid = IsOrganizerCatDruid(unit)
+    unit.isArcaneMage = IsOrganizerArcaneMage(unit)
+    unit.isHunter = IsOrganizerHunter(unit)
+    unit.isCasterDPS = IsOrganizerCasterDPS(unit)
+    unit.isPhysicalDPS = IsOrganizerPhysicalDPS(unit)
+    unit.isManaUser = IsOrganizerManaUser(unit)
+    unit.isPremiumShaman = IsOrganizerPremiumShaman(unit)
+
+    if unit.isTank then
+        unit.category = "TANK"
+        if unit.class == "PALADIN" then
+            unit.tankType = "MT_PROT_PAL"
+        elseif unit.class == "DRUID" then
+            unit.tankType = "MT_FERAL"
+        elseif unit.class == "WARRIOR" then
+            unit.tankType = "MT_WARRIOR"
+        else
+            unit.tankType = "TANK"
+        end
+    elseif unit.isHealer then
+        unit.category = "HEAL"
+    elseif unit.isPhysicalDPS then
+        unit.category = unit.class == "HUNTER" and "RANGED_PHYS" or "MELEE"
+    elseif unit.isCasterDPS then
+        unit.category = "CASTER"
+    else
+        unit.category = "UNKNOWN"
+    end
+
+    return unit
+end
+
+function Grouper:GetUncertainOrganizerPlayers(context)
+    local uncertain = {}
+    for _, unit in ipairs(context and context.players or {}) do
+        local role = NormalizeOrganizerRole(unit.role)
+        local choices = self:GetOrganizerChoiceList(unit)
+        if choices then
+            if role == ROLE_NONE then
+                uncertain[#uncertain + 1] = unit
+            elseif role == ROLE_DAMAGER then
+                if unit.class == "DRUID" and unit.spec ~= "FERAL" and unit.spec ~= "BALANCE" then
+                    uncertain[#uncertain + 1] = unit
+                elseif unit.class == "SHAMAN" and unit.spec ~= "ENHANCEMENT" and unit.spec ~= "ELEMENTAL" then
+                    uncertain[#uncertain + 1] = unit
+                elseif unit.class == "HUNTER"
+                    and unit.spec ~= "BEAST_MASTERY"
+                    and unit.spec ~= "MARKSMANSHIP"
+                    and unit.spec ~= "SURVIVAL"
+                    and unit.spec ~= "HUNTER_UNKNOWN"
+                then
+                    uncertain[#uncertain + 1] = unit
+                elseif unit.class == "MAGE" and unit.spec ~= "ARCANE" and unit.spec ~= "MAGE_CASTER" then
+                    uncertain[#uncertain + 1] = unit
+                end
+            end
+        end
+    end
+    return uncertain
+end
+
+function Grouper:SetOrganizerPlayerLocked(name, locked)
+    if not name or name == "" then
+        PrintGrouper("Usage: /grouper organize lock <player> or /grouper organize unlock <player>", "|cffff9900")
+        return
+    end
+
+    local db = self:EnsureRaidOrganizerDB()
+    local shortName = RemoveRealmName(name)
+    db.lockedPlayers[shortName] = locked == true or nil
+
+    if locked then
+        PrintGrouper(shortName .. " locked for Smart Organize.")
+    else
+        PrintGrouper(shortName .. " unlocked for Smart Organize.")
+    end
+end
+
+function Grouper:ClearOrganizerLocks()
+    local db = self:EnsureRaidOrganizerDB()
+    db.lockedPlayers = {}
+    PrintGrouper("Smart Organize locks cleared.")
 end
 
 -- Get boss config (merge saved with defaults)
@@ -1021,6 +1685,1069 @@ function Grouper:ScanRaid()
     return numMembers, tanks, healers, classCounts
 end
 
+function Grouper:GetConfiguredOrganizerSize()
+    local bossName = nil
+    if activeSession and activeSession.active then
+        bossName = activeSession.boss
+    elseif configFrame and configFrame.selectedBoss then
+        bossName = configFrame.selectedBoss
+    end
+
+    if bossName then
+        local config = self:GetBossConfig(bossName)
+        if config and config.size then
+            return config.size
+        end
+    end
+
+    return GrouperDB and GrouperDB.raidSize or defaults.raidSize or 25
+end
+
+function Grouper:CollectOrganizerRoster(options)
+    options = options or {}
+    self:EnsureRaidOrganizerDB()
+
+    local players = {}
+    local maxSubgroup = 1
+
+    local function addPlayer(unitToken, raidIndex, rosterName, subgroup, classFile, rank, raidRole, online)
+        if online == false or not rosterName or not classFile then
+            return
+        end
+
+        local name = RemoveRealmName(rosterName)
+        local role = NormalizeOrganizerRole(raidRole)
+        if UnitGroupRolesAssigned and unitToken then
+            local assignedRole = NormalizeOrganizerRole(UnitGroupRolesAssigned(unitToken))
+            if assignedRole ~= ROLE_NONE then
+                role = assignedRole
+            end
+        end
+        if raidRole == "MAINTANK" then
+            role = ROLE_TANK
+        end
+
+        local mainTank = raidRole == "MAINTANK" or role == ROLE_TANK
+        local key = rosterName
+        local db = self:EnsureRaidOrganizerDB()
+
+        local unit = {
+            unit = unitToken,
+            raidIndex = raidIndex,
+            key = key,
+            name = name,
+            fullName = rosterName,
+            class = classFile,
+            subgroup = subgroup or 1,
+            rank = rank or 0,
+            role = role,
+            mainTank = mainTank,
+            locked = db.lockedPlayers[key] == true or db.lockedPlayers[name] == true,
+        }
+
+        self:ApplyOrganizerKnownSpec(unit)
+        if options.guess then
+            self:ApplyOrganizerGuess(unit)
+        end
+        self:UpdateOrganizerTags(unit)
+
+        players[#players + 1] = unit
+        if unit.subgroup and unit.subgroup > maxSubgroup then
+            maxSubgroup = unit.subgroup
+        end
+    end
+
+    if IsInRaid and IsInRaid() then
+        local numMembers = GetNumGroupMembers and GetNumGroupMembers() or 0
+        for i = 1, numMembers do
+            local name, rank, subgroup, _, _, classFile, _, online, _, raidRole = GetRaidRosterInfo(i)
+            addPlayer("raid" .. i, i, name, subgroup, classFile, rank, raidRole, online)
+        end
+    elseif IsInGroup and IsInGroup() then
+        local playerName = GetUnitName and GetUnitName("player", true) or (UnitName and UnitName("player"))
+        local _, playerClass = UnitClass("player")
+        addPlayer("player", nil, playerName, 1, playerClass, 2, nil, true)
+
+        local partyMembers = (GetNumGroupMembers and GetNumGroupMembers() or 1) - 1
+        for i = 1, partyMembers do
+            local unitToken = "party" .. i
+            if UnitExists and UnitExists(unitToken) then
+                local memberName = GetUnitName and GetUnitName(unitToken, true) or (UnitName and UnitName(unitToken))
+                local _, classFile = UnitClass(unitToken)
+                addPlayer(unitToken, nil, memberName, 1, classFile, 0, nil, true)
+            end
+        end
+    else
+        local playerName = GetUnitName and GetUnitName("player", true) or (UnitName and UnitName("player"))
+        local _, playerClass = UnitClass("player")
+        addPlayer("player", nil, playerName, 1, playerClass, 2, nil, true)
+    end
+
+    table.sort(players, function(a, b)
+        if (a.subgroup or 1) ~= (b.subgroup or 1) then
+            return (a.subgroup or 1) < (b.subgroup or 1)
+        end
+        return (a.name or "") < (b.name or "")
+    end)
+
+    return players, maxSubgroup
+end
+
+function Grouper:BuildOrganizerContext(options)
+    options = options or {}
+    local players, maxSubgroup = self:CollectOrganizerRoster(options)
+    local configuredSize = self:GetConfiguredOrganizerSize()
+    local desiredSize = math.max(#players, configuredSize or #players)
+    local groupCount = math.ceil(desiredSize / RAID_GROUP_SIZE)
+
+    if #players <= 25 and (configuredSize or 25) >= 25 then
+        groupCount = math.max(groupCount, 5)
+    end
+
+    groupCount = Clamp(math.max(groupCount, maxSubgroup or 1), 1, 8)
+
+    return {
+        players = players,
+        groupCount = groupCount,
+        configuredSize = configuredSize,
+        guess = options.guess == true,
+    }
+end
+
+local function NewOrganizerLayout(groupCount)
+    local layout = {}
+    for groupIndex = 1, groupCount do
+        layout[groupIndex] = {}
+    end
+    return layout
+end
+
+local function CopyOrganizerLayout(layout)
+    local copy = {}
+    for groupIndex, group in ipairs(layout or {}) do
+        copy[groupIndex] = {}
+        for index, unit in ipairs(group) do
+            copy[groupIndex][index] = unit
+        end
+    end
+    return copy
+end
+
+local function AddOrganizerUnitToGroup(layout, groupIndex, unit)
+    if not layout[groupIndex] or #layout[groupIndex] >= RAID_GROUP_SIZE then
+        return false
+    end
+    layout[groupIndex][#layout[groupIndex] + 1] = unit
+    return true
+end
+
+local function RemoveOrganizerUnitFromGroup(layout, groupIndex, unitIndex)
+    local group = layout[groupIndex]
+    if not group or not group[unitIndex] then
+        return nil
+    end
+    local unit = group[unitIndex]
+    table.remove(group, unitIndex)
+    return unit
+end
+
+local function BuildCurrentOrganizerLayout(context)
+    local layout = NewOrganizerLayout(context.groupCount or 1)
+    local overflow = {}
+
+    for _, unit in ipairs(context.players or {}) do
+        local groupIndex = Clamp(unit.subgroup or 1, 1, context.groupCount or 1)
+        if not AddOrganizerUnitToGroup(layout, groupIndex, unit) then
+            overflow[#overflow + 1] = unit
+        end
+    end
+
+    for _, unit in ipairs(overflow) do
+        for groupIndex = 1, #layout do
+            if AddOrganizerUnitToGroup(layout, groupIndex, unit) then
+                break
+            end
+        end
+    end
+
+    return layout
+end
+
+local function CountOrganizerMoves(layout)
+    local moves = 0
+    for groupIndex, group in ipairs(layout or {}) do
+        for _, unit in ipairs(group) do
+            if (unit.subgroup or 1) ~= groupIndex then
+                moves = moves + 1
+            end
+        end
+    end
+    return moves
+end
+
+local function GetOrganizerGroupInfo(groupIndex, groupCount)
+    if groupCount <= 1 then
+        return { key = "mixed", label = "Mixed group" }
+    elseif groupCount == 2 then
+        if groupIndex == 1 then
+            return ORGANIZER_GROUPS[1]
+        end
+        return { key = "support", label = "Caster / healer support group" }
+    elseif groupCount == 3 then
+        if groupIndex == 1 then return ORGANIZER_GROUPS[1] end
+        if groupIndex == 2 then return ORGANIZER_GROUPS[2] end
+        return { key = "caster", label = "Caster / mana group" }
+    elseif groupCount == 4 then
+        if groupIndex == 1 then return ORGANIZER_GROUPS[1] end
+        if groupIndex == 2 then return ORGANIZER_GROUPS[2] end
+        if groupIndex == 3 then return ORGANIZER_GROUPS[3] end
+        return { key = "mana", label = "Mana / healer group" }
+    end
+
+    return ORGANIZER_GROUPS[groupIndex] or { key = "overflow", label = "Overflow group" }
+end
+
+local function BuildOrganizerGroupStats(group)
+    local stats = {
+        total = 0,
+        tanks = 0,
+        healers = 0,
+        damagers = 0,
+        physicalDps = 0,
+        casterDps = 0,
+        manaUsers = 0,
+        premiumShamans = 0,
+        shamans = 0,
+        melee = 0,
+        rangedPhysical = 0,
+        warlocks = 0,
+        mages = 0,
+        hunters = 0,
+        arcaneMages = 0,
+        shadowPriests = 0,
+        elemental = 0,
+        enhancement = 0,
+        restoShamans = 0,
+        boomkins = 0,
+        retPaladins = 0,
+        catDruids = 0,
+        warriors = 0,
+        rogues = 0,
+        mainTanks = 0,
+        protPaladinTanks = 0,
+        warriorOrBearTanks = 0,
+        names = {},
+        tankNames = {},
+        healerNames = {},
+        casterNames = {},
+        physicalNames = {},
+        manaNames = {},
+        elementalNames = {},
+        enhancementNames = {},
+        boomkinNames = {},
+        shadowNames = {},
+        arcaneMageNames = {},
+        retNames = {},
+        warriorNames = {},
+        feralNames = {},
+        hunterNames = {},
+        restoShamanNames = {},
+    }
+
+    for _, unit in ipairs(group or {}) do
+        stats.total = stats.total + 1
+        AddName(stats.names, unit)
+
+        if unit.class == "SHAMAN" then
+            stats.shamans = stats.shamans + 1
+        end
+        if unit.class == "WARLOCK" and IsOrganizerDamager(unit) then
+            stats.warlocks = stats.warlocks + 1
+        end
+        if unit.class == "MAGE" and IsOrganizerDamager(unit) then
+            stats.mages = stats.mages + 1
+        end
+        if unit.class == "HUNTER" and IsOrganizerDamager(unit) then
+            stats.hunters = stats.hunters + 1
+            AddName(stats.hunterNames, unit)
+        end
+        if unit.class == "WARRIOR" then
+            stats.warriors = stats.warriors + 1
+            AddName(stats.warriorNames, unit)
+        end
+        if unit.class == "ROGUE" and IsOrganizerDamager(unit) then
+            stats.rogues = stats.rogues + 1
+        end
+
+        if IsOrganizerTank(unit) then
+            stats.tanks = stats.tanks + 1
+            AddName(stats.tankNames, unit)
+            if unit.mainTank then
+                stats.mainTanks = stats.mainTanks + 1
+            end
+            if IsOrganizerProtPaladinTank(unit) then
+                stats.protPaladinTanks = stats.protPaladinTanks + 1
+            end
+            if IsOrganizerWarriorOrBearTank(unit) then
+                stats.warriorOrBearTanks = stats.warriorOrBearTanks + 1
+            end
+        elseif IsOrganizerHealer(unit) then
+            stats.healers = stats.healers + 1
+            AddName(stats.healerNames, unit)
+        elseif IsOrganizerDamager(unit) then
+            stats.damagers = stats.damagers + 1
+        end
+
+        if IsOrganizerPhysicalDPS(unit) then
+            stats.physicalDps = stats.physicalDps + 1
+            AddName(stats.physicalNames, unit)
+            if unit.class == "HUNTER" then
+                stats.rangedPhysical = stats.rangedPhysical + 1
+            else
+                stats.melee = stats.melee + 1
+            end
+        end
+        if IsOrganizerCasterDPS(unit) then
+            stats.casterDps = stats.casterDps + 1
+            AddName(stats.casterNames, unit)
+        end
+        if IsOrganizerManaUser(unit) then
+            stats.manaUsers = stats.manaUsers + 1
+            AddName(stats.manaNames, unit)
+        end
+        if IsOrganizerPremiumShaman(unit) then
+            stats.premiumShamans = stats.premiumShamans + 1
+        end
+        if IsOrganizerElemental(unit) then
+            stats.elemental = stats.elemental + 1
+            AddName(stats.elementalNames, unit)
+        end
+        if IsOrganizerEnhancement(unit) then
+            stats.enhancement = stats.enhancement + 1
+            AddName(stats.enhancementNames, unit)
+        end
+        if IsOrganizerRestoShaman(unit) then
+            stats.restoShamans = stats.restoShamans + 1
+            AddName(stats.restoShamanNames, unit)
+        end
+        if IsOrganizerBoomkin(unit) then
+            stats.boomkins = stats.boomkins + 1
+            AddName(stats.boomkinNames, unit)
+        end
+        if IsOrganizerShadowPriest(unit) then
+            stats.shadowPriests = stats.shadowPriests + 1
+            AddName(stats.shadowNames, unit)
+        end
+        if IsOrganizerRetPaladin(unit) then
+            stats.retPaladins = stats.retPaladins + 1
+            AddName(stats.retNames, unit)
+        end
+        if IsOrganizerCatDruid(unit) or (IsOrganizerTank(unit) and unit.class == "DRUID") then
+            stats.catDruids = stats.catDruids + 1
+            AddName(stats.feralNames, unit)
+        end
+        if IsOrganizerArcaneMage(unit) then
+            stats.arcaneMages = stats.arcaneMages + 1
+            AddName(stats.arcaneMageNames, unit)
+        end
+    end
+
+    return stats
+end
+
+local function ScoreOrganizerPairOneWay(anchor, other)
+    local score = 0
+
+    if IsOrganizerElemental(anchor) then
+        if other.class == "WARLOCK" and IsOrganizerDamager(other) then
+            score = score + 10
+        elseif other.class == "MAGE" and IsOrganizerDamager(other) then
+            score = score + 8
+        elseif IsOrganizerBoomkin(other) then
+            score = score + 10
+        elseif IsOrganizerCasterDPS(other) then
+            score = score + 6
+        elseif IsOrganizerHealer(other) or IsOrganizerPhysicalDPS(other) or IsOrganizerTank(other) then
+            score = score - 4
+        end
+    end
+
+    if IsOrganizerBoomkin(anchor) then
+        if other.class == "WARLOCK" and IsOrganizerDamager(other) then
+            score = score + 9
+        elseif other.class == "MAGE" and IsOrganizerDamager(other) then
+            score = score + 7
+        elseif IsOrganizerCasterDPS(other) then
+            score = score + 5
+        elseif IsOrganizerPhysicalDPS(other) then
+            score = score - 2
+        end
+    end
+
+    if IsOrganizerEnhancement(anchor) then
+        if IsOrganizerWarriorOrBearTank(other) then
+            score = score + 10
+        elseif other.class == "WARRIOR" and IsOrganizerDamager(other) then
+            score = score + 10
+        elseif other.class == "ROGUE" and IsOrganizerDamager(other) then
+            score = score + 9
+        elseif IsOrganizerRetPaladin(other) then
+            score = score + 8
+        elseif IsOrganizerCatDruid(other) then
+            score = score + 8
+        elseif IsOrganizerHunter(other) and IsOrganizerDamager(other) then
+            score = score + 5
+        elseif IsOrganizerCasterDPS(other) then
+            score = score - 8
+        elseif IsOrganizerHealer(other) then
+            score = score - 5
+        end
+    end
+
+    if IsOrganizerShadowPriest(anchor) then
+        if IsOrganizerArcaneMage(other) then
+            score = score + 10
+        elseif other.class == "MAGE" and IsOrganizerDamager(other) then
+            score = score + 7
+        elseif IsOrganizerHealer(other) then
+            score = score + 5
+        elseif other.class == "WARLOCK" and IsOrganizerDamager(other) then
+            score = score + 3
+        elseif IsOrganizerCasterDPS(other) then
+            score = score + 4
+        end
+    end
+
+    if IsOrganizerRetPaladin(anchor) and IsOrganizerProtPaladinTank(other) then
+        score = score + 8
+    end
+
+    if (IsOrganizerCatDruid(anchor) or (IsOrganizerTank(anchor) and anchor.class == "DRUID")) and (IsOrganizerPhysicalDPS(other) or IsOrganizerTank(other)) then
+        score = score + 7
+    end
+
+    if anchor.class == "WARRIOR" and (IsOrganizerPhysicalDPS(other) or IsOrganizerTank(other)) then
+        score = score + 5
+    end
+
+    if anchor.class == "HUNTER" and anchor.spec == "MARKSMANSHIP" and IsOrganizerPhysicalDPS(other) then
+        score = score + 4
+    elseif anchor.class == "HUNTER" and anchor.spec == "BEAST_MASTERY" and IsOrganizerDamager(other) then
+        score = score + 3
+    elseif anchor.class == "HUNTER" and anchor.spec == "HUNTER_UNKNOWN" and IsOrganizerPhysicalDPS(other) then
+        score = score + 2
+    end
+
+    return score
+end
+
+local function ScoreOrganizerPair(left, right)
+    return ScoreOrganizerPairOneWay(left, right) + ScoreOrganizerPairOneWay(right, left)
+end
+
+local function ScoreOrganizerGroupByArchetype(group, groupIndex, groupCount)
+    local info = GetOrganizerGroupInfo(groupIndex, groupCount)
+    local stats = BuildOrganizerGroupStats(group)
+    local score = 0
+
+    if info.key == "threat" then
+        score = score + stats.mainTanks * 18
+        score = score + stats.tanks * 6
+        score = score + stats.physicalDps * 3
+        score = score + stats.warriors * 4
+        if stats.warriorOrBearTanks > 0 and stats.enhancement > 0 then
+            score = score + 15
+        end
+        if stats.protPaladinTanks > 0 and stats.retPaladins > 0 then
+            score = score + 15
+        end
+        if stats.catDruids > 0 and (stats.physicalDps + stats.tanks) >= 3 then
+            score = score + 8
+        end
+        if stats.elemental > 0 then
+            score = score - 8
+        end
+        if stats.boomkins > 0 and stats.casterDps <= 1 then
+            score = score - 6
+        end
+    elseif info.key == "physical" then
+        score = score + stats.enhancement * 12
+        score = score + stats.physicalDps * 5
+        score = score + stats.warriors * 3
+        score = score + stats.rogues * 3
+        score = score + stats.retPaladins * 4
+        score = score + stats.catDruids * 4
+        score = score + stats.hunters * 2
+        score = score - stats.casterDps * 3
+    elseif info.key == "caster" then
+        score = score + stats.elemental * 14
+        score = score + stats.boomkins * 12
+        score = score + stats.casterDps * 5
+        score = score + stats.warlocks * 4
+        score = score + stats.mages * 3
+        if stats.elemental > 0 and stats.boomkins > 0 and stats.casterDps >= 3 then
+            score = score + 28
+        elseif stats.elemental > 0 and stats.casterDps >= 2 then
+            score = score + 12
+        elseif stats.boomkins > 0 and stats.casterDps >= 2 then
+            score = score + 10
+        end
+        score = score - stats.healers * 2
+        score = score - stats.physicalDps * 3
+    elseif info.key == "mana" then
+        score = score + stats.shadowPriests * 14
+        score = score + stats.arcaneMages * 8
+        score = score + stats.mages * 3
+        score = score + stats.healers * 3
+        score = score + stats.manaUsers * 2
+        if stats.shadowPriests > 0 and stats.arcaneMages > 0 then
+            score = score + 18
+        elseif stats.shadowPriests > 0 and stats.manaUsers >= 2 then
+            score = score + 9
+        end
+        score = score - stats.physicalDps * 2
+    elseif info.key == "healer" then
+        score = score + stats.healers * 5
+        score = score + stats.restoShamans * 6
+        score = score + stats.shadowPriests * 3
+        score = score - stats.elemental * 8
+        score = score - stats.enhancement * 5
+        score = score - stats.boomkins * 5
+    elseif info.key == "support" then
+        score = score + stats.casterDps * 4
+        score = score + stats.healers * 3
+        score = score + stats.shadowPriests * 5
+        score = score + stats.elemental * 5
+        score = score + stats.boomkins * 5
+    end
+
+    if stats.total > RAID_GROUP_SIZE then
+        score = score - 1000
+    end
+
+    for i = 1, #group do
+        for j = i + 1, #group do
+            score = score + ScoreOrganizerPair(group[i], group[j])
+        end
+    end
+
+    if stats.elemental > 0 and stats.casterDps <= 1 then
+        score = score - 8
+    end
+    if stats.boomkins > 0 and stats.casterDps <= 1 then
+        score = score - 8
+    end
+    if stats.enhancement > 0 and (stats.casterDps + stats.healers) > (stats.physicalDps + stats.tanks) then
+        score = score - 8
+    end
+    if stats.premiumShamans > 1 then
+        score = score - 10
+    end
+
+    return score
+end
+
+function Grouper:ScoreOrganizerLayout(layout)
+    local rawScore = 0
+    local groupCount = #layout
+
+    for groupIndex, group in ipairs(layout or {}) do
+        rawScore = rawScore + ScoreOrganizerGroupByArchetype(group, groupIndex, groupCount)
+    end
+
+    local moves = CountOrganizerMoves(layout)
+    return rawScore - moves, rawScore, moves
+end
+
+local function OrganizerLayoutIsBetter(candidate, best)
+    if not best then return true end
+    if candidate.netScore ~= best.netScore then
+        return candidate.netScore > best.netScore
+    end
+    if candidate.moves ~= best.moves then
+        return candidate.moves < best.moves
+    end
+    return candidate.rawScore > best.rawScore
+end
+
+function Grouper:ImproveOrganizerLayout(layout)
+    local bestLayout = CopyOrganizerLayout(layout)
+    local netScore, rawScore, moves = self:ScoreOrganizerLayout(bestLayout)
+    local best = { layout = bestLayout, netScore = netScore, rawScore = rawScore, moves = moves }
+
+    local improved = true
+    local pass = 0
+    while improved and pass < 20 do
+        pass = pass + 1
+        improved = false
+
+        local passBest = best
+        for groupA = 1, #best.layout do
+            for indexA, unitA in ipairs(best.layout[groupA]) do
+                if not unitA.locked then
+                    for groupB = groupA + 1, #best.layout do
+                        for indexB, unitB in ipairs(best.layout[groupB]) do
+                            if not unitB.locked then
+                                local candidateLayout = CopyOrganizerLayout(best.layout)
+                                candidateLayout[groupA][indexA], candidateLayout[groupB][indexB] = candidateLayout[groupB][indexB], candidateLayout[groupA][indexA]
+                                local candidateNet, candidateRaw, candidateMoves = self:ScoreOrganizerLayout(candidateLayout)
+                                local candidate = {
+                                    layout = candidateLayout,
+                                    netScore = candidateNet,
+                                    rawScore = candidateRaw,
+                                    moves = candidateMoves,
+                                }
+                                if OrganizerLayoutIsBetter(candidate, passBest) then
+                                    passBest = candidate
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        for groupA = 1, #best.layout do
+            for indexA, unitA in ipairs(best.layout[groupA]) do
+                if not unitA.locked then
+                    for groupB = 1, #best.layout do
+                        if groupA ~= groupB and #best.layout[groupB] < RAID_GROUP_SIZE then
+                            local candidateLayout = CopyOrganizerLayout(best.layout)
+                            local moved = RemoveOrganizerUnitFromGroup(candidateLayout, groupA, indexA)
+                            if moved then
+                                AddOrganizerUnitToGroup(candidateLayout, groupB, moved)
+                                local candidateNet, candidateRaw, candidateMoves = self:ScoreOrganizerLayout(candidateLayout)
+                                local candidate = {
+                                    layout = candidateLayout,
+                                    netScore = candidateNet,
+                                    rawScore = candidateRaw,
+                                    moves = candidateMoves,
+                                }
+                                if OrganizerLayoutIsBetter(candidate, passBest) then
+                                    passBest = candidate
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        if passBest ~= best and OrganizerLayoutIsBetter(passBest, best) then
+            best = passBest
+            improved = true
+        end
+    end
+
+    return best.layout, best.netScore, best.rawScore, best.moves
+end
+
+function Grouper:ScoreOrganizerUnitForSeed(unit, groupIndex, layout)
+    local group = layout[groupIndex] or {}
+    local beforeNet = self:ScoreOrganizerLayout(layout)
+    local candidate = CopyOrganizerLayout(layout)
+    AddOrganizerUnitToGroup(candidate, groupIndex, unit)
+    local afterNet = self:ScoreOrganizerLayout(candidate)
+    local score = afterNet - beforeNet
+
+    if (unit.subgroup or 1) == groupIndex then
+        score = score + 2
+    end
+
+    if #group >= RAID_GROUP_SIZE then
+        return -100000
+    end
+
+    return score
+end
+
+function Grouper:BuildOrganizerSeedLayout(context)
+    local groupCount = context.groupCount or 1
+    local layout = NewOrganizerLayout(groupCount)
+    local remaining = {}
+
+    for _, unit in ipairs(context.players or {}) do
+        remaining[unit] = true
+        if unit.locked then
+            local groupIndex = Clamp(unit.subgroup or 1, 1, groupCount)
+            if AddOrganizerUnitToGroup(layout, groupIndex, unit) then
+                remaining[unit] = nil
+            end
+        end
+    end
+
+    local function takeBest(groupIndex, predicate, valueFn)
+        if not layout[groupIndex] or #layout[groupIndex] >= RAID_GROUP_SIZE then
+            return nil
+        end
+
+        local bestUnit
+        local bestScore = -100000
+        for unit in pairs(remaining) do
+            if predicate(unit) then
+                local score = valueFn and valueFn(unit) or self:ScoreOrganizerUnitForSeed(unit, groupIndex, layout)
+                if (unit.subgroup or 1) == groupIndex then
+                    score = score + 1
+                end
+                if score > bestScore or (score == bestScore and (unit.name or "") < (bestUnit and bestUnit.name or "\255")) then
+                    bestUnit = unit
+                    bestScore = score
+                end
+            end
+        end
+
+        if bestUnit and AddOrganizerUnitToGroup(layout, groupIndex, bestUnit) then
+            remaining[bestUnit] = nil
+            return bestUnit
+        end
+        return nil
+    end
+
+    if groupCount >= 1 then
+        takeBest(1, function(unit) return unit.mainTank and IsOrganizerTank(unit) end, function(unit)
+            local score = 100
+            if unit.class == "PALADIN" then score = score + 4 end
+            return score
+        end)
+        takeBest(1, function(unit) return IsOrganizerTank(unit) end, function(unit)
+            return unit.mainTank and 95 or 80
+        end)
+        if (layout[1][1] and IsOrganizerProtPaladinTank(layout[1][1])) then
+            takeBest(1, IsOrganizerRetPaladin)
+        end
+        if layout[1][1] and IsOrganizerWarriorOrBearTank(layout[1][1]) then
+            takeBest(1, IsOrganizerEnhancement)
+        end
+        takeBest(1, function(unit) return unit.class == "WARRIOR" end)
+        takeBest(1, function(unit) return IsOrganizerCatDruid(unit) end)
+        while #layout[1] < RAID_GROUP_SIZE do
+            local added = takeBest(1, function(unit) return IsOrganizerPhysicalDPS(unit) end)
+            if not added then break end
+        end
+    end
+
+    local casterGroup = groupCount >= 3 and 3 or groupCount
+    if casterGroup and casterGroup >= 1 then
+        takeBest(casterGroup, IsOrganizerElemental)
+        takeBest(casterGroup, IsOrganizerBoomkin)
+        while #layout[casterGroup] < RAID_GROUP_SIZE do
+            local added = takeBest(casterGroup, function(unit)
+                return IsOrganizerCasterDPS(unit) and not IsOrganizerShadowPriest(unit)
+            end)
+            if not added then break end
+        end
+    end
+
+    local manaGroup = groupCount >= 4 and 4 or casterGroup
+    if manaGroup and manaGroup >= 1 then
+        takeBest(manaGroup, IsOrganizerShadowPriest)
+        takeBest(manaGroup, IsOrganizerArcaneMage)
+        takeBest(manaGroup, IsOrganizerArcaneMage)
+        while #layout[manaGroup] < RAID_GROUP_SIZE do
+            local added = takeBest(manaGroup, function(unit)
+                return IsOrganizerManaUser(unit) or (unit.class == "MAGE" and IsOrganizerDamager(unit))
+            end)
+            if not added then break end
+        end
+    end
+
+    if groupCount >= 2 then
+        takeBest(2, IsOrganizerEnhancement)
+        while #layout[2] < RAID_GROUP_SIZE do
+            local added = takeBest(2, function(unit) return IsOrganizerPhysicalDPS(unit) end)
+            if not added then break end
+        end
+    end
+
+    local healerGroup = groupCount >= 5 and 5 or groupCount
+    if healerGroup and healerGroup >= 1 then
+        takeBest(healerGroup, IsOrganizerRestoShaman)
+        while #layout[healerGroup] < RAID_GROUP_SIZE do
+            local added = takeBest(healerGroup, function(unit) return IsOrganizerHealer(unit) end)
+            if not added then break end
+        end
+    end
+
+    while true do
+        local bestUnit
+        local bestGroup
+        local bestScore = -100000
+
+        for unit in pairs(remaining) do
+            for groupIndex = 1, groupCount do
+                if #layout[groupIndex] < RAID_GROUP_SIZE then
+                    local score = self:ScoreOrganizerUnitForSeed(unit, groupIndex, layout)
+                    if score > bestScore or (score == bestScore and (unit.name or "") < (bestUnit and bestUnit.name or "\255")) then
+                        bestUnit = unit
+                        bestGroup = groupIndex
+                        bestScore = score
+                    end
+                end
+            end
+        end
+
+        if not bestUnit or not bestGroup then
+            break
+        end
+
+        AddOrganizerUnitToGroup(layout, bestGroup, bestUnit)
+        remaining[bestUnit] = nil
+    end
+
+    return layout
+end
+
+local function OrganizerGroupHasUnit(group, predicate)
+    for _, unit in ipairs(group or {}) do
+        if predicate(unit) then return true end
+    end
+    return false
+end
+
+local function FormatOrganizerUnit(unit)
+    local detail = ClassLabel(unit.class)
+    if unit.spec and unit.spec ~= "" then
+        detail = detail .. " " .. SpecLabel(unit.spec)
+    else
+        detail = detail .. " " .. RoleLabel(unit.role)
+    end
+    if unit.guessed then
+        detail = detail .. "?"
+    end
+    return string.format("%s (%s)", unit.name or "Unknown", detail)
+end
+
+function Grouper:DescribeOrganizerGroup(group, groupIndex, groupCount)
+    local info = GetOrganizerGroupInfo(groupIndex, groupCount)
+    local stats = BuildOrganizerGroupStats(group)
+    local reasons = {}
+    local missing = {}
+
+    if info.key == "threat" then
+        if stats.mainTanks > 0 or stats.tanks > 0 then
+            reasons[#reasons + 1] = "+ Main tank / tank: " .. JoinNames(stats.tankNames)
+        end
+        if stats.enhancement > 0 then
+            reasons[#reasons + 1] = "+ Enhancement Shaman: " .. JoinNames(stats.enhancementNames)
+        end
+        if stats.warriors > 0 then
+            reasons[#reasons + 1] = "+ Warrior shout support: " .. JoinNames(stats.warriorNames)
+        end
+        if stats.retPaladins > 0 then
+            reasons[#reasons + 1] = "+ Ret aura support: " .. JoinNames(stats.retNames)
+        end
+        if stats.catDruids > 0 then
+            reasons[#reasons + 1] = "+ Feral / LotP support: " .. JoinNames(stats.feralNames)
+        end
+        if stats.tanks == 0 then
+            missing[#missing + 1] = "main tank"
+        end
+    elseif info.key == "physical" then
+        if stats.enhancement > 0 then
+            reasons[#reasons + 1] = "+ Enhancement Shaman for physical DPS"
+        else
+            missing[#missing + 1] = "Enhancement Shaman"
+        end
+        if stats.physicalDps > 0 then
+            reasons[#reasons + 1] = "+ " .. CountListText(stats.physicalDps, "physical DPS") .. ": " .. JoinNames(stats.physicalNames)
+        end
+        if stats.hunters > 0 then
+            reasons[#reasons + 1] = "+ Hunter AP/FI candidates: " .. JoinNames(stats.hunterNames)
+        end
+    elseif info.key == "caster" then
+        if stats.elemental > 0 then
+            reasons[#reasons + 1] = "+ Elemental Shaman / Totem of Wrath: " .. JoinNames(stats.elementalNames)
+        else
+            missing[#missing + 1] = "Elemental Shaman"
+        end
+        if stats.boomkins > 0 then
+            reasons[#reasons + 1] = "+ Boomkin / Moonkin Aura: " .. JoinNames(stats.boomkinNames)
+        else
+            missing[#missing + 1] = "Boomkin"
+        end
+        if stats.casterDps > 0 then
+            reasons[#reasons + 1] = "+ " .. CountListText(stats.casterDps, "caster DPS", "caster DPS") .. ": " .. JoinNames(stats.casterNames)
+        end
+        if stats.casterDps < 3 then
+            missing[#missing + 1] = tostring(3 - stats.casterDps) .. " caster DPS"
+        end
+    elseif info.key == "mana" then
+        if stats.shadowPriests > 0 then
+            reasons[#reasons + 1] = "+ Shadow Priest mana battery: " .. JoinNames(stats.shadowNames)
+        else
+            missing[#missing + 1] = "Shadow Priest"
+        end
+        if stats.arcaneMages > 0 then
+            reasons[#reasons + 1] = "+ Arcane Mage mana target: " .. JoinNames(stats.arcaneMageNames)
+        end
+        if stats.healers > 0 then
+            reasons[#reasons + 1] = "+ Healer mana support: " .. JoinNames(stats.healerNames)
+        end
+        if stats.manaUsers < 2 then
+            missing[#missing + 1] = "mana-hungry caster/healer"
+        end
+    elseif info.key == "healer" then
+        if stats.healers > 0 then
+            reasons[#reasons + 1] = "+ Healers: " .. JoinNames(stats.healerNames)
+        end
+        if stats.restoShamans > 0 then
+            reasons[#reasons + 1] = "+ Resto Shaman Mana Tide/Spring: " .. JoinNames(stats.restoShamanNames)
+        end
+        if stats.healers == 0 then
+            missing[#missing + 1] = "healers / utility"
+        end
+    else
+        if stats.casterDps > 0 then
+            reasons[#reasons + 1] = "+ Casters: " .. JoinNames(stats.casterNames)
+        end
+        if stats.healers > 0 then
+            reasons[#reasons + 1] = "+ Healers: " .. JoinNames(stats.healerNames)
+        end
+        if stats.physicalDps > 0 then
+            reasons[#reasons + 1] = "+ Physical DPS: " .. JoinNames(stats.physicalNames)
+        end
+    end
+
+    return {
+        index = groupIndex,
+        label = info.label,
+        key = info.key,
+        players = group,
+        stats = stats,
+        reasons = reasons,
+        missing = missing,
+    }
+end
+
+function Grouper:BuildOrganizerWarnings(groups)
+    local warnings = {}
+    local groupsNeedingShaman = 0
+    local groupsWithPremiumShaman = 0
+
+    for _, groupInfo in ipairs(groups or {}) do
+        local stats = groupInfo.stats
+        if groupInfo.key == "physical" or groupInfo.key == "caster" or groupInfo.key == "threat" then
+            groupsNeedingShaman = groupsNeedingShaman + 1
+            if stats.premiumShamans > 0 then
+                groupsWithPremiumShaman = groupsWithPremiumShaman + 1
+            end
+        end
+
+        if stats.elemental > 0 and (stats.casterDps <= 1 or (stats.healers + stats.physicalDps) > stats.casterDps) then
+            warnings[#warnings + 1] = "Warning: Elemental Shaman in Group " .. groupInfo.index .. " is not powering a caster-heavy group."
+        end
+        if stats.enhancement > 0 and (stats.casterDps + stats.healers) > (stats.physicalDps + stats.tanks) then
+            warnings[#warnings + 1] = "Warning: Enhancement Shaman in Group " .. groupInfo.index .. " is mostly grouped with casters/healers."
+        end
+        if stats.boomkins > 0 and stats.casterDps <= 1 then
+            warnings[#warnings + 1] = "Warning: Boomkin aura in Group " .. groupInfo.index .. " is not benefiting a caster group."
+        end
+        if stats.shadowPriests > 0 and stats.manaUsers <= 1 then
+            warnings[#warnings + 1] = "Warning: Shadow Priest in Group " .. groupInfo.index .. " is not grouped with mana users."
+        end
+        if stats.premiumShamans > 1 then
+            warnings[#warnings + 1] = "Warning: Two premium Shamans are stacked in Group " .. groupInfo.index .. "."
+        end
+    end
+
+    if groupsNeedingShaman > groupsWithPremiumShaman then
+        for _, groupInfo in ipairs(groups or {}) do
+            if groupInfo.stats.premiumShamans > 1 then
+                warnings[#warnings + 1] = "Warning: A DPS group lacks a premium Shaman while Group " .. groupInfo.index .. " has multiple."
+                break
+            end
+        end
+    end
+
+    return warnings
+end
+
+function Grouper:GetOrganizerMoveReason(unit, targetGroup)
+    local stats = targetGroup and targetGroup.stats or nil
+    local label = targetGroup and targetGroup.label or "target group"
+
+    if IsOrganizerElemental(unit) and stats then
+        return "gives Totem of Wrath to " .. CountListText(stats.casterDps, "caster DPS", "caster DPS")
+    elseif IsOrganizerBoomkin(unit) and stats then
+        return "gives Moonkin Aura to " .. CountListText(stats.casterDps, "caster DPS", "caster DPS")
+    elseif IsOrganizerEnhancement(unit) and stats then
+        return "gives Windfury/Grace support to " .. CountListText(stats.physicalDps + stats.tanks, "physical player")
+    elseif IsOrganizerShadowPriest(unit) and stats then
+        return "feeds mana to " .. CountListText(stats.manaUsers, "mana user")
+    elseif IsOrganizerRetPaladin(unit) and stats and stats.protPaladinTanks > 0 then
+        return "supports prot paladin threat with Sanctity Aura"
+    elseif IsOrganizerArcaneMage(unit) and stats and stats.shadowPriests > 0 then
+        return "pairs Arcane Mage with Shadow Priest mana"
+    end
+
+    return "improves " .. label
+end
+
+function Grouper:BuildOrganizerMoves(layout, groups)
+    local moves = {}
+    for groupIndex, group in ipairs(layout or {}) do
+        for _, unit in ipairs(group) do
+            if (unit.subgroup or 1) ~= groupIndex then
+                moves[#moves + 1] = {
+                    unit = unit,
+                    name = unit.name,
+                    from = unit.subgroup or 1,
+                    to = groupIndex,
+                    reason = self:GetOrganizerMoveReason(unit, groups[groupIndex]),
+                }
+            end
+        end
+    end
+
+    table.sort(moves, function(a, b)
+        if a.to ~= b.to then return a.to < b.to end
+        return (a.name or "") < (b.name or "")
+    end)
+
+    return moves
+end
+
+function Grouper:BuildSmartOrganizePlan(context)
+    context = context or self:BuildOrganizerContext()
+
+    local currentLayout = BuildCurrentOrganizerLayout(context)
+    local improvedCurrentLayout, currentNet, currentRaw, currentMoves = self:ImproveOrganizerLayout(currentLayout)
+
+    local seedLayout = self:BuildOrganizerSeedLayout(context)
+    local improvedSeedLayout, seedNet, seedRaw, seedMoves = self:ImproveOrganizerLayout(seedLayout)
+
+    local currentCandidate = {
+        layout = improvedCurrentLayout,
+        netScore = currentNet,
+        rawScore = currentRaw,
+        moves = currentMoves,
+    }
+    local seedCandidate = {
+        layout = improvedSeedLayout,
+        netScore = seedNet,
+        rawScore = seedRaw,
+        moves = seedMoves,
+    }
+
+    local chosen = OrganizerLayoutIsBetter(seedCandidate, currentCandidate) and seedCandidate or currentCandidate
+    local groups = {}
+    for groupIndex, group in ipairs(chosen.layout) do
+        groups[groupIndex] = self:DescribeOrganizerGroup(group, groupIndex, #chosen.layout)
+    end
+
+    local plan = {
+        context = context,
+        layout = chosen.layout,
+        groups = groups,
+        score = chosen.netScore,
+        rawScore = chosen.rawScore,
+        moveCount = chosen.moves,
+    }
+    plan.moves = self:BuildOrganizerMoves(chosen.layout, groups)
+    plan.warnings = self:BuildOrganizerWarnings(groups)
+    return plan
+end
+
 -- Generate recruitment message
 function Grouper:GenerateMessage()
     local numRaid, tanks, healers, classCounts = self:ScanRaid()
@@ -1594,7 +3321,7 @@ function Grouper:CreateConfigUI()
 
     -- Main frame
     configFrame = CreateFrame("Frame", "GrouperConfigFrame", UIParent, "BasicFrameTemplateWithInset")
-    configFrame:SetSize(500, 670)
+    configFrame:SetSize(500, 710)
     configFrame:SetPoint("CENTER")
     configFrame:SetMovable(true)
     configFrame:EnableMouse(true)
@@ -1958,6 +3685,16 @@ function Grouper:CreateConfigUI()
 
     yOffset = yOffset - 60
 
+    -- Smart Organize Button
+    local organizeButton = CreateFrame("Button", "GrouperSmartOrganizeButton", configFrame, "UIPanelButtonTemplate")
+    organizeButton:SetSize(200, 30)
+    organizeButton:SetPoint("BOTTOM", configFrame, "BOTTOM", 0, 95)
+    organizeButton:SetText("Smart Organize Raid")
+    organizeButton:SetScript("OnClick", function()
+        Grouper:ShowSmartOrganizePreview()
+    end)
+    ApplyElvUISkin(organizeButton, "button")
+
     -- Preview Button
     local previewButton = CreateFrame("Button", "GrouperPreviewButton", configFrame, "UIPanelButtonTemplate")
     previewButton:SetSize(200, 30)
@@ -2091,6 +3828,615 @@ function Grouper:ShowPreviewMessages(bossName)
     print("|cff00ff00[Grouper]|r Actual messages will vary based on real raid composition.")
 end
 
+function Grouper:CanApplySmartOrganize()
+    if InCombatLockdown and InCombatLockdown() then
+        PrintGrouper("Smart Organize cannot move raid members in combat.", "|cffff9900")
+        return false
+    end
+    if not (IsInRaid and IsInRaid()) then
+        PrintGrouper("Smart Organize can only apply moves in a raid.", "|cffff9900")
+        return false
+    end
+
+    if UnitIsGroupLeader and UnitIsGroupLeader("player") then
+        return true
+    end
+    if UnitIsGroupAssistant and UnitIsGroupAssistant("player") then
+        return true
+    end
+
+    if GetNumGroupMembers and GetRaidRosterInfo and UnitName then
+        local playerName = UnitName("player")
+        for i = 1, GetNumGroupMembers() do
+            local name, rank = GetRaidRosterInfo(i)
+            if name and UnitNamesMatch(name, playerName) and (rank == 2 or rank == 1) then
+                return true
+            end
+        end
+    end
+
+    PrintGrouper("Smart Organize needs raid leader or assistant.", "|cffff9900")
+    return false
+end
+
+function Grouper:FindRaidIndexByName(name)
+    if not name or not GetNumGroupMembers or not GetRaidRosterInfo then
+        return nil
+    end
+    for i = 1, GetNumGroupMembers() do
+        local rosterName = GetRaidRosterInfo(i)
+        if rosterName and UnitNamesMatch(rosterName, name) then
+            return i
+        end
+    end
+    return nil
+end
+
+local function BuildApplyStateFromPlan(plan)
+    local state = {
+        players = {},
+        actions = 0,
+        maxActions = 80,
+        plan = plan,
+    }
+
+    for targetGroup, group in ipairs(plan.layout or {}) do
+        for _, unit in ipairs(group) do
+            state.players[#state.players + 1] = {
+                name = unit.fullName or unit.name,
+                shortName = unit.name,
+                current = unit.subgroup or 1,
+                target = targetGroup,
+            }
+        end
+    end
+    return state
+end
+
+local function CountApplyStateGroups(state)
+    local counts = {}
+    for _, player in ipairs(state.players or {}) do
+        counts[player.current] = (counts[player.current] or 0) + 1
+    end
+    return counts
+end
+
+local function FindApplyPlayer(state, predicate)
+    for _, player in ipairs(state.players or {}) do
+        if predicate(player) then
+            return player
+        end
+    end
+    return nil
+end
+
+local function ApplyStateComplete(state)
+    for _, player in ipairs(state.players or {}) do
+        if player.current ~= player.target then
+            return false
+        end
+    end
+    return true
+end
+
+function Grouper:ApplySmartOrganizeOperation(state, playerA, playerB)
+    if not playerA then return false end
+
+    local indexA = self:FindRaidIndexByName(playerA.name)
+    if not indexA then
+        PrintGrouper("Could not find " .. tostring(playerA.shortName or playerA.name) .. " in the raid roster.", "|cffff0000")
+        return false
+    end
+
+    if playerB then
+        local indexB = self:FindRaidIndexByName(playerB.name)
+        if not indexB then
+            PrintGrouper("Could not find " .. tostring(playerB.shortName or playerB.name) .. " in the raid roster.", "|cffff0000")
+            return false
+        end
+        if SwapRaidSubgroup then
+            SwapRaidSubgroup(indexA, indexB)
+            playerA.current, playerB.current = playerB.current, playerA.current
+            return true
+        end
+    elseif SetRaidSubgroup then
+        SetRaidSubgroup(indexA, playerA.target)
+        playerA.current = playerA.target
+        return true
+    end
+
+    PrintGrouper("Raid move API is unavailable in this client.", "|cffff0000")
+    return false
+end
+
+function Grouper:ApplyNextSmartOrganizeMove(state)
+    if not state then return end
+    if not self:CanApplySmartOrganize() then return end
+
+    if ApplyStateComplete(state) then
+        PrintGrouper("Smart Organize complete.")
+        return
+    end
+
+    state.actions = state.actions + 1
+    if state.actions > state.maxActions then
+        PrintGrouper("Smart Organize stopped after too many move attempts. Please retry after the roster settles.", "|cffff9900")
+        return
+    end
+
+    local playerA
+    local playerB
+
+    playerA = FindApplyPlayer(state, function(player)
+        return player.current ~= player.target
+    end)
+
+    if not playerA then
+        PrintGrouper("Smart Organize complete.")
+        return
+    end
+
+    playerB = FindApplyPlayer(state, function(player)
+        return player ~= playerA and player.current == playerA.target and player.target == playerA.current
+    end)
+
+    local moved = false
+    if playerB then
+        moved = self:ApplySmartOrganizeOperation(state, playerA, playerB)
+    else
+        local counts = CountApplyStateGroups(state)
+        if (counts[playerA.target] or 0) < RAID_GROUP_SIZE then
+            moved = self:ApplySmartOrganizeOperation(state, playerA, nil)
+        else
+            playerB = FindApplyPlayer(state, function(player)
+                return player ~= playerA and player.current == playerA.target and player.current ~= player.target
+            end)
+            if playerB then
+                moved = self:ApplySmartOrganizeOperation(state, playerA, playerB)
+            end
+        end
+    end
+
+    if not moved then
+        PrintGrouper("Smart Organize could not find a safe next move.", "|cffff9900")
+        return
+    end
+
+    if C_Timer and C_Timer.After then
+        C_Timer.After(0.2, function()
+            Grouper:ApplyNextSmartOrganizeMove(state)
+        end)
+    else
+        self:ApplyNextSmartOrganizeMove(state)
+    end
+end
+
+function Grouper:ApplySmartOrganizePlan(plan)
+    plan = plan or self.pendingSmartOrganizePlan
+    if not plan then
+        PrintGrouper("No Smart Organize preview is ready yet.", "|cffff9900")
+        return
+    end
+    if #plan.moves == 0 then
+        PrintGrouper("Raid groups already match the Smart Organize plan.")
+        return
+    end
+    if not self:CanApplySmartOrganize() then
+        return
+    end
+
+    PrintGrouper("Applying Smart Organize with " .. #plan.moves .. " planned move(s).")
+    self:ApplyNextSmartOrganizeMove(BuildApplyStateFromPlan(plan))
+end
+
+function Grouper:BuildSmartOrganizePreviewLines(plan)
+    local lines = {}
+    lines[#lines + 1] = { text = "Smart Organize Preview", kind = "header" }
+    lines[#lines + 1] = { text = string.format("Score: %d (%d raw), Moves: %d", plan.score or 0, plan.rawScore or 0, #plan.moves), kind = "normal" }
+    lines[#lines + 1] = { text = " " }
+
+    for _, groupInfo in ipairs(plan.groups or {}) do
+        lines[#lines + 1] = {
+            text = string.format("Group %d: %s", groupInfo.index, groupInfo.label),
+            kind = "group",
+        }
+
+        local playerNames = {}
+        for _, unit in ipairs(groupInfo.players or {}) do
+            playerNames[#playerNames + 1] = FormatOrganizerUnit(unit)
+        end
+        lines[#lines + 1] = { text = "  " .. (#playerNames > 0 and table.concat(playerNames, " | ") or "(empty)") }
+
+        for _, reason in ipairs(groupInfo.reasons or {}) do
+            lines[#lines + 1] = { text = "  " .. reason, kind = "good" }
+        end
+        if #groupInfo.missing > 0 then
+            lines[#lines + 1] = { text = "  Missing: " .. table.concat(groupInfo.missing, ", "), kind = "missing" }
+        end
+        lines[#lines + 1] = { text = " " }
+    end
+
+    if #plan.warnings > 0 then
+        lines[#lines + 1] = { text = "Warnings", kind = "header" }
+        for _, warning in ipairs(plan.warnings) do
+            lines[#lines + 1] = { text = "  " .. warning, kind = "warning" }
+        end
+        lines[#lines + 1] = { text = " " }
+    end
+
+    lines[#lines + 1] = { text = "Planned Moves", kind = "header" }
+    if #plan.moves == 0 then
+        lines[#lines + 1] = { text = "  No moves needed.", kind = "good" }
+    else
+        for _, move in ipairs(plan.moves) do
+            lines[#lines + 1] = {
+                text = string.format("  %s: Group %d -> Group %d (%s)", move.name, move.from, move.to, move.reason),
+                kind = "move",
+            }
+        end
+    end
+
+    return lines
+end
+
+function Grouper:SetSmartOrganizeFrameLines(lines)
+    local frame = smartOrganizeFrame
+    if not frame then return end
+
+    local rowHeight = 16
+    frame.Rows = frame.Rows or {}
+    for index, line in ipairs(lines or {}) do
+        local row = frame.Rows[index]
+        if not row then
+            row = frame.ScrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            row:SetJustifyH("LEFT")
+            row:SetWidth(620)
+            frame.Rows[index] = row
+        end
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", frame.ScrollChild, "TOPLEFT", 0, -((index - 1) * rowHeight))
+        row:SetText(line.text or "")
+        if line.kind == "warning" then
+            row:SetTextColor(1.0, 0.55, 0.15)
+        elseif line.kind == "good" then
+            row:SetTextColor(0.35, 1.0, 0.35)
+        elseif line.kind == "missing" then
+            row:SetTextColor(1.0, 0.82, 0.25)
+        elseif line.kind == "header" or line.kind == "group" then
+            row:SetTextColor(1.0, 0.9, 0.45)
+        elseif line.kind == "move" then
+            row:SetTextColor(0.65, 0.85, 1.0)
+        else
+            row:SetTextColor(1.0, 1.0, 1.0)
+        end
+        row:Show()
+    end
+
+    for index = #(lines or {}) + 1, #frame.Rows do
+        frame.Rows[index]:Hide()
+    end
+
+    frame.ScrollChild:SetHeight(math.max(1, #(lines or {}) * rowHeight))
+end
+
+function Grouper:EnsureSmartOrganizeFrame()
+    if smartOrganizeFrame then
+        return smartOrganizeFrame
+    end
+
+    local frame = CreateFrame("Frame", "GrouperSmartOrganizeFrame", UIParent, "BasicFrameTemplateWithInset")
+    frame:SetSize(700, 560)
+    frame:SetPoint("CENTER")
+    frame:SetMovable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", frame.StartMoving)
+    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    frame:SetFrameStrata("DIALOG")
+    frame:Hide()
+
+    frame.Title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+    frame.Title:SetPoint("TOP", 0, -8)
+    frame.Title:SetText("Grouper Smart Organize")
+
+    frame.Scroll = CreateFrame("ScrollFrame", "GrouperSmartOrganizeScrollFrame", frame, "UIPanelScrollFrameTemplate")
+    frame.Scroll:SetPoint("TOPLEFT", 18, -36)
+    frame.Scroll:SetPoint("BOTTOMRIGHT", -36, 58)
+
+    frame.ScrollChild = CreateFrame("Frame", "GrouperSmartOrganizeScrollChild", frame.Scroll)
+    frame.ScrollChild:SetSize(620, 1)
+    frame.Scroll:SetScrollChild(frame.ScrollChild)
+
+    frame.ApplyButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.ApplyButton:SetSize(110, 24)
+    frame.ApplyButton:SetPoint("BOTTOMRIGHT", -18, 18)
+    frame.ApplyButton:SetText("Apply")
+    frame.ApplyButton:SetScript("OnClick", function()
+        Grouper:ApplySmartOrganizePlan(Grouper.pendingSmartOrganizePlan)
+    end)
+    ApplyElvUISkin(frame.ApplyButton, "button")
+
+    frame.GuessButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.GuessButton:SetSize(110, 24)
+    frame.GuessButton:SetPoint("RIGHT", frame.ApplyButton, "LEFT", -8, 0)
+    frame.GuessButton:SetText("Guess")
+    frame.GuessButton:SetScript("OnClick", function()
+        Grouper:ShowSmartOrganizePreview({ guess = true })
+    end)
+    ApplyElvUISkin(frame.GuessButton, "button")
+
+    frame.SpecsButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.SpecsButton:SetSize(110, 24)
+    frame.SpecsButton:SetPoint("RIGHT", frame.GuessButton, "LEFT", -8, 0)
+    frame.SpecsButton:SetText("Assign Specs")
+    frame.SpecsButton:SetScript("OnClick", function()
+        local context = Grouper:BuildOrganizerContext()
+        Grouper:ShowOrganizerSpecFrame(Grouper:GetUncertainOrganizerPlayers(context))
+    end)
+    ApplyElvUISkin(frame.SpecsButton, "button")
+
+    frame.CloseButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.CloseButton:SetSize(110, 24)
+    frame.CloseButton:SetPoint("RIGHT", frame.SpecsButton, "LEFT", -8, 0)
+    frame.CloseButton:SetText("Close")
+    frame.CloseButton:SetScript("OnClick", function()
+        frame:Hide()
+    end)
+    ApplyElvUISkin(frame.CloseButton, "button")
+
+    ApplyElvUISkin(frame, "frame")
+
+    if type(UISpecialFrames) == "table" then
+        table.insert(UISpecialFrames, "GrouperSmartOrganizeFrame")
+    end
+
+    smartOrganizeFrame = frame
+    return frame
+end
+
+local function SetOrganizerSpecButtonSelected(button, selected)
+    if not button then return end
+    if selected then
+        button:Disable()
+        if button.GetFontString and button:GetFontString() then
+            button:GetFontString():SetTextColor(0.2, 1.0, 0.2)
+        end
+    else
+        button:Enable()
+        if button.GetFontString and button:GetFontString() then
+            button:GetFontString():SetTextColor(1.0, 1.0, 1.0)
+        end
+    end
+end
+
+function Grouper:EnsureOrganizerSpecFrame()
+    if smartOrganizeSpecFrame then
+        return smartOrganizeSpecFrame
+    end
+
+    local frame = CreateFrame("Frame", "GrouperSmartOrganizeSpecFrame", UIParent, "BasicFrameTemplateWithInset")
+    frame:SetSize(640, 430)
+    frame:SetPoint("CENTER")
+    frame:SetMovable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", frame.StartMoving)
+    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    frame:SetFrameStrata("DIALOG")
+    frame:Hide()
+
+    frame.Title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+    frame.Title:SetPoint("TOP", 0, -8)
+    frame.Title:SetText("Smart Organize: Assign Specs")
+
+    frame.Text = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    frame.Text:SetPoint("TOPLEFT", 18, -36)
+    frame.Text:SetPoint("TOPRIGHT", -18, -36)
+    frame.Text:SetJustifyH("LEFT")
+    frame.Text:SetText("Select specs for players Grouper cannot infer, then preview Smart Organize again.")
+
+    frame.Scroll = CreateFrame("ScrollFrame", "GrouperSmartOrganizeSpecScrollFrame", frame, "UIPanelScrollFrameTemplate")
+    frame.Scroll:SetPoint("TOPLEFT", 18, -62)
+    frame.Scroll:SetPoint("BOTTOMRIGHT", -38, 52)
+
+    frame.ScrollChild = CreateFrame("Frame", "GrouperSmartOrganizeSpecScrollChild", frame.Scroll)
+    frame.ScrollChild:SetSize(560, 1)
+    frame.Scroll:SetScrollChild(frame.ScrollChild)
+    frame.Rows = {}
+
+    frame.ApplyButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.ApplyButton:SetSize(110, 24)
+    frame.ApplyButton:SetPoint("BOTTOMRIGHT", -18, 18)
+    frame.ApplyButton:SetText("Preview")
+    frame.ApplyButton:SetScript("OnClick", function()
+        Grouper:ApplyOrganizerSpecSelections()
+    end)
+    ApplyElvUISkin(frame.ApplyButton, "button")
+
+    frame.GuessButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.GuessButton:SetSize(110, 24)
+    frame.GuessButton:SetPoint("RIGHT", frame.ApplyButton, "LEFT", -8, 0)
+    frame.GuessButton:SetText("Guess")
+    frame.GuessButton:SetScript("OnClick", function()
+        frame:Hide()
+        Grouper:ShowSmartOrganizePreview({ guess = true })
+    end)
+    ApplyElvUISkin(frame.GuessButton, "button")
+
+    frame.CancelButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.CancelButton:SetSize(110, 24)
+    frame.CancelButton:SetPoint("RIGHT", frame.GuessButton, "LEFT", -8, 0)
+    frame.CancelButton:SetText("Cancel")
+    frame.CancelButton:SetScript("OnClick", function()
+        frame:Hide()
+    end)
+    ApplyElvUISkin(frame.CancelButton, "button")
+
+    ApplyElvUISkin(frame, "frame")
+
+    if type(UISpecialFrames) == "table" then
+        table.insert(UISpecialFrames, "GrouperSmartOrganizeSpecFrame")
+    end
+
+    smartOrganizeSpecFrame = frame
+    return frame
+end
+
+function Grouper:UpdateOrganizerSpecRow(row, selected)
+    for _, button in ipairs(row.Buttons or {}) do
+        SetOrganizerSpecButtonSelected(button, button.choice == selected)
+    end
+end
+
+function Grouper:ShowOrganizerSpecFrame(uncertain)
+    if not uncertain or #uncertain == 0 then
+        PrintGrouper("No uncertain role/spec assignments were found.")
+        return
+    end
+
+    local frame = self:EnsureOrganizerSpecFrame()
+    if not frame then
+        PrintGrouper("Could not create the Smart Organize spec frame.", "|cffff0000")
+        return
+    end
+
+    self.pendingOrganizerSpecUnits = uncertain
+    self.organizerSpecSelections = {}
+
+    local rowHeight = 34
+    for index, unit in ipairs(uncertain) do
+        local row = frame.Rows[index]
+        if not row then
+            row = CreateFrame("Frame", nil, frame.ScrollChild)
+            row:SetSize(560, rowHeight)
+            row.Name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            row.Name:SetPoint("LEFT", 0, 0)
+            row.Name:SetSize(165, 18)
+            row.Name:SetJustifyH("LEFT")
+            row.Buttons = {}
+            frame.Rows[index] = row
+        end
+
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, -((index - 1) * rowHeight))
+        row.unit = unit
+        row:Show()
+        row.Name:SetText(unit.name .. " (" .. ClassLabel(unit.class) .. ")")
+
+        local choices = self:GetOrganizerChoiceList(unit) or {}
+        local selected = choices[1]
+        self.organizerSpecSelections[unit.key or unit.name] = selected
+
+        for buttonIndex, choice in ipairs(choices) do
+            local button = row.Buttons[buttonIndex]
+            if not button then
+                button = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+                button:SetSize(82, 22)
+                row.Buttons[buttonIndex] = button
+            end
+            button:ClearAllPoints()
+            button:SetPoint("LEFT", 175 + ((buttonIndex - 1) * 88), 0)
+            button:SetText(choice.label)
+            button.choice = choice
+            local unitRef = unit
+            local rowRef = row
+            button:SetScript("OnClick", function(selfButton)
+                Grouper.organizerSpecSelections[unitRef.key or unitRef.name] = selfButton.choice
+                Grouper:UpdateOrganizerSpecRow(rowRef, selfButton.choice)
+            end)
+            button:Show()
+            SetOrganizerSpecButtonSelected(button, choice == selected)
+        end
+
+        for buttonIndex = #choices + 1, #row.Buttons do
+            row.Buttons[buttonIndex]:Hide()
+        end
+    end
+
+    for index = #uncertain + 1, #frame.Rows do
+        frame.Rows[index]:Hide()
+    end
+
+    frame.ScrollChild:SetHeight(math.max(1, #uncertain * rowHeight))
+    frame:SetHeight(math.min(520, math.max(220, 122 + (#uncertain * rowHeight))))
+    frame:Show()
+end
+
+function Grouper:ApplyOrganizerSpecSelections()
+    local frame = smartOrganizeSpecFrame
+    if not frame then return end
+
+    for _, unit in ipairs(self.pendingOrganizerSpecUnits or {}) do
+        local choice = self.organizerSpecSelections and self.organizerSpecSelections[unit.key or unit.name]
+        if choice then
+            self:SaveOrganizerManualChoice(unit, choice)
+        end
+    end
+
+    frame:Hide()
+    self:ShowSmartOrganizePreview({ noPrompt = true })
+end
+
+function Grouper:ShowOrganizerGuessPrompt(uncertain)
+    if type(StaticPopupDialogs) == "table" and type(StaticPopup_Show) == "function" then
+        StaticPopupDialogs.GROUPER_SMART_ORGANIZE_GUESS = {
+            text = "Grouper is unsure about %s role/spec assignment(s).",
+            button1 = "Guess specs",
+            button2 = "Assign specs",
+            OnAccept = function()
+                Grouper:ShowSmartOrganizePreview({ guess = true })
+            end,
+            OnCancel = function(_, data)
+                Grouper:ShowOrganizerSpecFrame(data or uncertain)
+            end,
+            timeout = 0,
+            whileDead = true,
+            hideOnEscape = true,
+            noCancelOnEscape = true,
+            preferredIndex = 3,
+        }
+        StaticPopup_Show("GROUPER_SMART_ORGANIZE_GUESS", tostring(#uncertain), nil, uncertain)
+    else
+        self:ShowOrganizerSpecFrame(uncertain)
+    end
+end
+
+function Grouper:ShowSmartOrganizePreview(options)
+    options = options or {}
+    if not (IsInRaid and IsInRaid()) and not _G.GROUPER_TEST_MODE then
+        PrintGrouper("Smart Organize is designed for raid groups. Convert to raid first.", "|cffff9900")
+        return
+    end
+
+    local context = self:BuildOrganizerContext({ guess = options.guess == true })
+    if #context.players == 0 then
+        PrintGrouper("No raid members found for Smart Organize.", "|cffff9900")
+        return
+    end
+
+    local uncertain = self:GetUncertainOrganizerPlayers(context)
+    if #uncertain > 0 and not options.guess and not options.noPrompt then
+        self:ShowOrganizerGuessPrompt(uncertain)
+        return
+    end
+
+    local plan = self:BuildSmartOrganizePlan(context)
+    self.pendingSmartOrganizePlan = plan
+
+    for _, warning in ipairs(plan.warnings or {}) do
+        PrintGrouper(warning, "|cffff9900")
+    end
+
+    local frame = self:EnsureSmartOrganizeFrame()
+    self:SetSmartOrganizeFrameLines(self:BuildSmartOrganizePreviewLines(plan))
+    if #plan.moves > 0 then
+        frame.ApplyButton:Enable()
+    else
+        frame.ApplyButton:Disable()
+    end
+    frame:Show()
+end
+
 -- Show Configuration UI
 function Grouper:ShowConfigUI()
     if not configFrame then
@@ -2128,6 +4474,28 @@ function Grouper:HandleCommand(input)
     -- /grouper minimap
     elseif cmd == "minimap" or cmd == "mm" then
         self:ToggleMinimapButton()
+
+    -- /grouper organize
+    elseif cmd == "organize" or cmd == "organise" or cmd == "smart" or cmd == "raidorg" then
+        local subcmd = args[2] and string.lower(args[2]) or nil
+        if subcmd == "guess" then
+            self:ShowSmartOrganizePreview({ guess = true })
+        elseif subcmd == "apply" then
+            self:ApplySmartOrganizePlan(self.pendingSmartOrganizePlan)
+        elseif subcmd == "specs" then
+            local context = self:BuildOrganizerContext()
+            self:ShowOrganizerSpecFrame(self:GetUncertainOrganizerPlayers(context))
+        elseif subcmd == "lock" then
+            local name = args[3] or (UnitName and UnitName("target"))
+            self:SetOrganizerPlayerLocked(name, true)
+        elseif subcmd == "unlock" then
+            local name = args[3] or (UnitName and UnitName("target"))
+            self:SetOrganizerPlayerLocked(name, false)
+        elseif subcmd == "clearlocks" then
+            self:ClearOrganizerLocks()
+        else
+            self:ShowSmartOrganizePreview()
+        end
 
     -- /grouper off
     elseif cmd == "off" then
@@ -2419,6 +4787,11 @@ function Grouper:ShowHelp()
     print("|cffffcc00/grouper help|r - Show this help")
     print("|cffffcc00/grouper about|r - Show author and addon information")
     print("|cffffcc00/grouper minimap|r - Toggle minimap button")
+    print("|cffffcc00/grouper organize|r - Preview Smart Organize raid groups")
+    print("|cffffcc00/grouper organize guess|r - Preview using guessed specs")
+    print("|cffffcc00/grouper organize apply|r - Apply the last Smart Organize preview")
+    print("|cffffcc00/grouper organize lock <player>|r - Pin a player in their current group")
+    print("|cffffcc00/grouper organize unlock <player>|r - Remove a Smart Organize pin")
     print("|cffffcc00/grouper <boss> [hard reserve item]|r - Start recruiting")
     print("  Example: /grouper Azuregos Mature Blue Dragon Sinew")
     print("|cffffcc00/grouper off|r - Stop recruiting")
@@ -2454,17 +4827,48 @@ function Grouper:ShowAbout()
     print("Type |cffffcc00/grouper help|r for command list.")
 end
 
+_G.Grouper = Grouper
+Grouper._test = {
+    BuildSmartOrganizePlan = function(context)
+        return Grouper:BuildSmartOrganizePlan(context)
+    end,
+    ScoreOrganizerLayout = function(layout)
+        return Grouper:ScoreOrganizerLayout(layout)
+    end,
+    BuildOrganizerGroupStats = function(group)
+        return BuildOrganizerGroupStats(group)
+    end,
+    UpdateOrganizerTags = function(unit)
+        return Grouper:UpdateOrganizerTags(unit)
+    end,
+    ApplyOrganizerGuess = function(unit)
+        return Grouper:ApplyOrganizerGuess(unit)
+    end,
+    GetUncertainOrganizerPlayers = function(context)
+        return Grouper:GetUncertainOrganizerPlayers(context)
+    end,
+    BuildCurrentOrganizerLayout = function(context)
+        return BuildCurrentOrganizerLayout(context)
+    end,
+}
+
+if not _G.GROUPER_TEST_MODE then
+
 -- Event handlers
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("CHAT_MSG_ADDON")
+eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+eventFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
+eventFrame:RegisterEvent("PLAYER_TALENT_UPDATE")
 eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
     if event == "ADDON_LOADED" and arg1 == "Grouper" then
         Grouper:InitDB()
 
         -- Register addon message prefix for version checking
         C_ChatInfo.RegisterAddonMessagePrefix(versionCheck.messagePrefix)
+        C_ChatInfo.RegisterAddonMessagePrefix(RAID_ORGANIZER_SPEC_PREFIX)
 
         -- Initialize minimap button
         if GrouperDB.minimapButton.show then
@@ -2481,11 +4885,18 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
         C_Timer.After(versionCheck.broadcastDelay, function()
             Grouper:BroadcastVersion()
         end)
+        C_Timer.After(3, function()
+            Grouper:BroadcastOrganizerSpec()
+        end)
     elseif event == "CHAT_MSG_ADDON" then
         local prefix, message, channel, sender = arg1, arg2, arg3, arg4
         if prefix == versionCheck.messagePrefix and channel == "GUILD" then
             Grouper:HandleVersionMessage(sender, message)
+        elseif prefix == RAID_ORGANIZER_SPEC_PREFIX then
+            Grouper:HandleOrganizerSpecMessage(sender, message)
         end
+    elseif event == "GROUP_ROSTER_UPDATE" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "PLAYER_TALENT_UPDATE" then
+        Grouper:BroadcastOrganizerSpec()
     end
 end)
 
@@ -2579,4 +4990,6 @@ C_Timer.After(2, updateCombatLogRegistration)
 SLASH_GROUPER1 = "/grouper"
 SlashCmdList["GROUPER"] = function(msg)
     Grouper:HandleCommand(msg)
+end
+
 end

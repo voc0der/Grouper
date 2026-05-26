@@ -19,6 +19,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify release package contents
+        shell: bash
+        run: bash ./.github/scripts/verify-release-package.sh
+
       - name: Package and release
         uses: BigWigsMods/packager@v2
         env:

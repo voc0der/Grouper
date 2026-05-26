@@ -1,0 +1,185 @@
+name: PR Package Comment
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - labeled
+      - unlabeled
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: pr-package-comment-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Update PR package comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pr = context.payload.pull_request;
+            const prNumber = pr.number;
+            const marker = '<!-- grouper-pr-package -->';
+            const labelName = 'build';
+            const workflowName = 'PR Addon Package';
+            const maxAttempts = 30;
+            const sleepMs = 10000;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+
+            const managedComments = comments.filter(comment => comment.body?.includes(marker));
+            const existingComment = managedComments[0];
+            const duplicateComments = managedComments.slice(1);
+
+            async function deleteDuplicateComments() {
+              for (const comment of duplicateComments) {
+                await github.rest.issues.deleteComment({
+                  owner,
+                  repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+
+            async function upsertComment(body) {
+              if (existingComment) {
+                await github.rest.issues.updateComment({
+                  owner,
+                  repo,
+                  comment_id: existingComment.id,
+                  body,
+                });
+                await deleteDuplicateComments();
+                return;
+              }
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body,
+              });
+              await deleteDuplicateComments();
+            }
+
+            async function deleteComment() {
+              for (const comment of managedComments) {
+                await github.rest.issues.deleteComment({
+                  owner,
+                  repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+
+            const hasBuildLabel = pr.labels.some(label => label.name === labelName);
+            if (!hasBuildLabel) {
+              await deleteComment();
+              return;
+            }
+
+            let run;
+            for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+              const { data: runData } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner,
+                repo,
+                event: 'pull_request',
+                per_page: 100,
+              });
+
+              run = runData.workflow_runs.find(candidate =>
+                candidate.name === workflowName &&
+                candidate.head_sha === pr.head.sha
+              );
+
+              if (run && run.status === 'completed') {
+                break;
+              }
+
+              await new Promise(resolve => setTimeout(resolve, sleepMs));
+            }
+
+            if (!run) {
+              await upsertComment([
+                marker,
+                'No PR package build was found for the current head commit yet.',
+                '',
+                `- Expected workflow: \`${workflowName}\``,
+                `- Head commit: \`${pr.head.sha}\``,
+                '',
+                `Keep the \`${labelName}\` label on the PR and rerun the package workflow if needed.`,
+              ].join('\n'));
+              core.setFailed(`No ${workflowName} run found for PR #${prNumber}.`);
+              return;
+            }
+
+            if (run.conclusion !== 'success') {
+              await upsertComment([
+                marker,
+                'The latest labeled PR package build did not produce a downloadable artifact.',
+                '',
+                `- Status: \`${run.conclusion}\``,
+                `- Workflow run: [View logs](${run.html_url})`,
+                '',
+                `Keep the \`${labelName}\` label on the PR and push or rerun the build to try again.`,
+              ].join('\n'));
+              return;
+            }
+
+            const { data: artifactData } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner,
+              repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+
+            const expectedArtifactName = `Grouper-pr-${prNumber}`;
+            const artifact = artifactData.artifacts.find(candidate => candidate.name === expectedArtifactName && !candidate.expired)
+              || artifactData.artifacts.find(candidate => !candidate.expired);
+
+            if (!artifact) {
+              await upsertComment([
+                marker,
+                'The latest labeled PR package build completed successfully, but no artifact was found.',
+                '',
+                `- Workflow run: [View logs](${run.html_url})`,
+              ].join('\n'));
+              core.setFailed(`No artifact found for workflow run ${run.id}.`);
+              return;
+            }
+
+            const expiresAt = artifact.expires_at
+              ? new Date(artifact.expires_at).toUTCString()
+              : 'Unknown';
+            const artifactUrl = `https://github.com/${owner}/${repo}/actions/runs/${run.id}/artifacts/${artifact.id}`;
+
+            await upsertComment([
+              marker,
+              'A public PR package is ready.',
+              '',
+              `- Download zip: [${artifact.name}.zip](${artifactUrl})`,
+              `- Workflow run: [View logs](${run.html_url})`,
+              `- Expires: \`${expiresAt}\``,
+              '',
+              `This comment is refreshed after each completed package build while the \`${labelName}\` label is present.`,
+            ].join('\n'));

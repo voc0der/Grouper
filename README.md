@@ -11,6 +11,7 @@ WoW Classic addon for managing PUG groups for raids, dungeons, and world bosses.
 - **100+ Dungeons & Raids** - Pre-configured for all content from 5-mans to 40-man raids
 - **Automatic World Boss Kill Tracking** - Detects boss kills and records them with layer info
 - **Smart Messaging** - Auto-generates recruitment messages based on your raid composition
+- **Smart Raid Organization** - TBC-aware scored raid optimizer with spec prompts, low-move previews, and explanations for caster, melee, threat, mana, and healer groups
 - **Minimap Button** - Quick access to configuration (draggable, can be hidden)
 - **Channel Spam Buttons** - Click to post to Trade (in cities), LFG, or General channels
 - **Configurable** - Set custom tank/healer requirements, hard reserves, raid sizes, and spam intervals per boss/dungeon
@@ -60,6 +61,15 @@ Stop recruiting:
 Toggle minimap button:
 ```
 /grouper minimap
+```
+
+Preview Smart Organize raid groups:
+```
+/grouper organize
+/grouper organize guess
+/grouper organize apply
+/grouper organize lock <player>
+/grouper organize unlock <player>
 ```
 
 Advanced settings (or use the GUI):
