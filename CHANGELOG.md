@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.59] - 2026-05-26
+
+### Changed
+- Smart Advertiser now combines healer or tank shortages with caster/melee DPS steering instead of letting the DPS balance ask hide missing roles.
+
 ## [1.0.58] - 2026-05-26
 
 ### Changed
