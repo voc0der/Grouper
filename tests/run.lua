@@ -443,6 +443,23 @@ test("fill simulation logs ads and finishes with a scored comp", function()
     assertTrue(logIncludes(plan.fillLog, "Final score"), "fill sim should log the final score")
 end)
 
+test("fill simulation can surface tank shortages from partial scenarios", function()
+    local state = T.BuildSmartAdvertiserFillState({
+        bossName = "Magtheridon's Lair",
+        configuredSize = 25,
+        sequence = 3,
+        speed = 8,
+        startSize = 16,
+    })
+
+    assertEquals(state.scenario.name, "20/25 partial raid", "fill sim should be able to use partial planning scenarios")
+    assertEquals(state.targetSize, 25, "partial fill scenarios should be topped up to the raid target size")
+
+    T.AdvanceSmartAdvertiserFillState(state)
+
+    assertTrue(logIncludes(state.log, "need tank"), "fill sim should show tank shortages when tanks are not front-loaded")
+end)
+
 test("fill simulation normalizes speed to 2x 4x or 8x", function()
     local slow = T.BuildSmartAdvertiserFillState({ bossName = "Serpentshrine Cavern", configuredSize = 25, speed = 1 })
     local medium = T.BuildSmartAdvertiserFillState({ bossName = "Serpentshrine Cavern", configuredSize = 25, speed = 5 })
