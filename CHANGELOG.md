@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.58] - 2026-05-26
+
+### Changed
+- Smart Advertiser now says `need caster dps` or `need melee dps` directly instead of adding priority wording to lopsided DPS fill messages.
+
 ## [1.0.57] - 2026-05-26
 
 ### Changed
