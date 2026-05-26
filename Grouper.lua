@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.53"
+Grouper.version = "1.0.54"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -229,6 +229,21 @@ local ROLE_NONE = "NONE"
 local RAID_ORGANIZER_SPEC_PREFIX = "GrouperSpec"
 local RAID_ORGANIZER_SPEC_VERSION = 1
 local RAID_GROUP_SIZE = 5
+local SMART_ADVERTISER_MODE_ASK = "ask"
+local SMART_ADVERTISER_MODE_OFF = "off"
+local SMART_ADVERTISER_MODE_GUESS = "guess"
+
+local SMART_ADVERTISER_MODES = {
+    { value = SMART_ADVERTISER_MODE_ASK, text = "On (ask)" },
+    { value = SMART_ADVERTISER_MODE_OFF, text = "Off" },
+    { value = SMART_ADVERTISER_MODE_GUESS, text = "On (guess all specs)" },
+}
+
+local SMART_ADVERTISER_MODE_LABELS = {
+    [SMART_ADVERTISER_MODE_ASK] = "On (ask)",
+    [SMART_ADVERTISER_MODE_OFF] = "Off",
+    [SMART_ADVERTISER_MODE_GUESS] = "On (guess all specs)",
+}
 
 local ORGANIZER_GROUPS = {
     [1] = { key = "threat", label = "MT threat group" },
@@ -494,6 +509,29 @@ local ORGANIZER_PLANNING_SCENARIOS_20 = {
     },
 }
 
+local SMART_ADVERTISER_CANDIDATES = {
+    { label = "Prot Paladin", class = "PALADIN", role = ROLE_TANK, spec = "PROTECTION", priority = 18, softCap = 1 },
+    { label = "Feral Tank", class = "DRUID", role = ROLE_TANK, spec = "FERAL_TANK", priority = 16, softCap = 1 },
+    { label = "Prot Warrior", class = "WARRIOR", role = ROLE_TANK, spec = "PROTECTION", priority = 15, softCap = 1 },
+    { label = "Resto Shaman", class = "SHAMAN", role = ROLE_HEALER, spec = "RESTORATION", priority = 18, softCap = 2 },
+    { label = "Priest Healer", class = "PRIEST", role = ROLE_HEALER, spec = "HOLY", priority = 15, softCap = 2 },
+    { label = "Holy Paladin", class = "PALADIN", role = ROLE_HEALER, spec = "HOLY", priority = 14, softCap = 2 },
+    { label = "Resto Druid", class = "DRUID", role = ROLE_HEALER, spec = "RESTORATION", priority = 13, softCap = 1 },
+    { label = "Ele Shaman", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ELEMENTAL", bucket = "caster", priority = 30, softCap = 1 },
+    { label = "Enh Shaman", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ENHANCEMENT", bucket = "physical", priority = 28, softCap = 2 },
+    { label = "Boomkin", class = "DRUID", role = ROLE_DAMAGER, spec = "BALANCE", bucket = "caster", priority = 24, softCap = 1 },
+    { label = "Shadow Priest", class = "PRIEST", role = ROLE_DAMAGER, spec = "SHADOW", bucket = "caster", priority = 24, softCap = 1 },
+    { label = "Warlock", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER", bucket = "caster", priority = 20 },
+    { label = "Mage", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER", bucket = "caster", priority = 18 },
+    { label = "Arcane Mage", class = "MAGE", role = ROLE_DAMAGER, spec = "ARCANE", bucket = "caster", priority = 17, softCap = 1 },
+    { label = "Survival Hunter", class = "HUNTER", role = ROLE_DAMAGER, spec = "SURVIVAL", bucket = "physical", priority = 17, softCap = 1 },
+    { label = "Hunter", class = "HUNTER", role = ROLE_DAMAGER, spec = "MARKSMANSHIP", bucket = "physical", priority = 15 },
+    { label = "Warrior DPS", class = "WARRIOR", role = ROLE_DAMAGER, spec = "WARRIOR_DPS", bucket = "physical", priority = 15 },
+    { label = "Rogue", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS", bucket = "physical", priority = 14 },
+    { label = "Ret Paladin", class = "PALADIN", role = ROLE_DAMAGER, spec = "RETRIBUTION", bucket = "physical", priority = 13, softCap = 1 },
+    { label = "Feral DPS", class = "DRUID", role = ROLE_DAMAGER, spec = "FERAL", bucket = "physical", priority = 13, softCap = 1 },
+}
+
 local function PrintGrouper(message, color)
     local prefix = "|cff00ff00[Grouper]|r "
     if color then
@@ -556,6 +594,21 @@ end
 
 local function ClassColor(classFile)
     return CLASS_COLORS[classFile] or { 0.55, 0.55, 0.55 }
+end
+
+local function NormalizeSmartAdvertiserMode(mode)
+    if mode == SMART_ADVERTISER_MODE_OFF or mode == SMART_ADVERTISER_MODE_GUESS then
+        return mode
+    end
+    return SMART_ADVERTISER_MODE_ASK
+end
+
+local function SmartAdvertiserModeLabel(mode)
+    return SMART_ADVERTISER_MODE_LABELS[NormalizeSmartAdvertiserMode(mode)]
+end
+
+local function IsRaidBossConfig(config)
+    return config and config.category and string.find(config.category, "Raid") ~= nil
 end
 
 local function ShortText(text, maxLength)
@@ -741,6 +794,8 @@ function Grouper:InitDB()
         GrouperDB.generalInterval = defaults.generalInterval
     end
 
+    GrouperDB.smartAdvertiserMode = NormalizeSmartAdvertiserMode(GrouperDB.smartAdvertiserMode)
+
     if not GrouperDB.bosses then
         GrouperDB.bosses = {}
     end
@@ -818,6 +873,30 @@ function Grouper:EnsureRaidOrganizerDB()
         GrouperDB.raidOrganizer.lockedPlayers = {}
     end
     return GrouperDB.raidOrganizer
+end
+
+function Grouper:GetSmartAdvertiserMode()
+    if not GrouperDB then
+        return SMART_ADVERTISER_MODE_ASK
+    end
+    GrouperDB.smartAdvertiserMode = NormalizeSmartAdvertiserMode(GrouperDB.smartAdvertiserMode)
+    return GrouperDB.smartAdvertiserMode
+end
+
+function Grouper:SetSmartAdvertiserMode(mode)
+    if not GrouperDB then
+        GrouperDB = {}
+    end
+    GrouperDB.smartAdvertiserMode = NormalizeSmartAdvertiserMode(mode)
+    return GrouperDB.smartAdvertiserMode
+end
+
+function Grouper:IsSmartAdvertiserEnabledForBoss(bossName, config)
+    if self:GetSmartAdvertiserMode() == SMART_ADVERTISER_MODE_OFF then
+        return false
+    end
+    config = config or self:GetBossConfig(bossName)
+    return isTBC and IsRaidBossConfig(config)
 end
 
 function Grouper:GetOrganizerManualChoice(unit)
@@ -992,6 +1071,9 @@ function Grouper:ApplyOrganizerKnownSpec(unit)
 
     if not unit.spec then
         unit.spec = SpecFromAssignedRole(unit.class, unit.role)
+    end
+    if unit.spec and NormalizeOrganizerRole(unit.role) == ROLE_NONE then
+        unit.role = RoleFromSpec(unit.class, unit.spec, ROLE_NONE)
     end
 end
 
@@ -3044,11 +3126,272 @@ function Grouper:BuildSmartOrganizePlan(context)
     return plan
 end
 
+local function CopySmartAdvertiserContext(context)
+    local copy = {
+        players = {},
+        groupCount = context and context.groupCount or 1,
+        configuredSize = context and context.configuredSize,
+        guess = true,
+    }
+    for index, unit in ipairs(context and context.players or {}) do
+        copy.players[index] = unit
+    end
+    return copy
+end
+
+local function CountSmartAdvertiserCandidate(players, candidate)
+    local count = 0
+    for _, unit in ipairs(players or {}) do
+        if unit.class == candidate.class and unit.spec == candidate.spec and NormalizeOrganizerRole(unit.role) == NormalizeOrganizerRole(candidate.role) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+local function CountSmartAdvertiserClass(players, classFile)
+    local count = 0
+    for _, unit in ipairs(players or {}) do
+        if unit.class == classFile then
+            count = count + 1
+        end
+    end
+    return count
+end
+
+local function BuildSmartAdvertiserCandidateUnit(candidate, index, context)
+    local unit = {
+        unit = nil,
+        raidIndex = nil,
+        key = "SmartAdvertiser:" .. tostring(candidate.label) .. ":" .. tostring(index),
+        name = "Need " .. tostring(candidate.label),
+        fullName = "Need " .. tostring(candidate.label),
+        class = candidate.class,
+        subgroup = context and context.groupCount or 1,
+        rank = 0,
+        role = candidate.role,
+        spec = candidate.spec,
+        simulated = true,
+    }
+    Grouper:UpdateOrganizerTags(unit)
+    return unit
+end
+
+local function AddSmartAdvertiserCandidate(context, candidate, index)
+    local candidateUnit = BuildSmartAdvertiserCandidateUnit(candidate, index, context)
+    context.players[#context.players + 1] = candidateUnit
+    return candidateUnit
+end
+
+local function SmartAdvertiserRosterStats(players)
+    local stats = BuildOrganizerGroupStats(players)
+    stats.rosterSize = #(players or {})
+    return stats
+end
+
+function Grouper:ScoreSmartAdvertiserCandidate(context, candidate, config, baseRawScore)
+    if not context or not candidate or not config then
+        return -100000
+    end
+
+    local stats = SmartAdvertiserRosterStats(context.players)
+    local raidSize = config.size or context.configuredSize or defaults.raidSize
+    local desiredTanks = math.max(0, config.tanks or 0)
+    local desiredHealers = math.max(0, config.healers or 0)
+    local desiredDps = math.max(0, raidSize - desiredTanks - desiredHealers)
+    local openSlots = math.max(0, raidSize - stats.rosterSize)
+    if openSlots <= 0 then
+        return -100000
+    end
+
+    local role = NormalizeOrganizerRole(candidate.role)
+    local score = candidate.priority or 0
+
+    if role == ROLE_TANK then
+        if stats.tanks >= desiredTanks then
+            return -100000
+        end
+        score = score + 500 + ((desiredTanks - stats.tanks) * 60)
+    elseif role == ROLE_HEALER then
+        if stats.healers >= desiredHealers then
+            return -100000
+        end
+        score = score + 420 + ((desiredHealers - stats.healers) * 45)
+    elseif role == ROLE_DAMAGER then
+        local reservedRoleSlots = math.max(0, desiredTanks - stats.tanks) + math.max(0, desiredHealers - stats.healers)
+        if openSlots <= reservedRoleSlots or stats.damagers >= desiredDps then
+            return -100000
+        end
+
+        local desiredCasterDps = math.ceil(desiredDps / 2)
+        local desiredPhysicalDps = desiredDps - desiredCasterDps
+        if candidate.bucket == "caster" then
+            local deficit = desiredCasterDps - stats.casterDps
+            score = score + (deficit > 0 and (95 + deficit * 10) or -25)
+        elseif candidate.bucket == "physical" then
+            local deficit = desiredPhysicalDps - stats.physicalDps
+            score = score + (deficit > 0 and (95 + deficit * 10) or -25)
+        end
+    else
+        return -100000
+    end
+
+    local existing = CountSmartAdvertiserCandidate(context.players, candidate)
+    if existing == 0 then
+        score = score + 20
+    end
+    if candidate.softCap and existing >= candidate.softCap then
+        score = score - (55 * (existing - candidate.softCap + 1))
+    end
+    if CountSmartAdvertiserClass(context.players, candidate.class) == 0 then
+        score = score + 8
+    end
+
+    local candidateContext = CopySmartAdvertiserContext(context)
+    AddSmartAdvertiserCandidate(candidateContext, candidate, stats.rosterSize + 1)
+    local candidateLayout = self:BuildOrganizerSeedLayout(candidateContext)
+    local _, candidateRawScore = self:ScoreOrganizerLayout(candidateLayout)
+    score = score + ((candidateRawScore or 0) - (baseRawScore or 0))
+
+    return score
+end
+
+function Grouper:SelectSmartAdvertiserCandidates(context, config, maxSuggestions)
+    local selected = {}
+    local usedLabels = {}
+    local workingContext = CopySmartAdvertiserContext(context)
+    maxSuggestions = math.max(0, maxSuggestions or 0)
+
+    for index = 1, maxSuggestions do
+        local baseLayout = self:BuildOrganizerSeedLayout(workingContext)
+        local _, baseRawScore = self:ScoreOrganizerLayout(baseLayout)
+        local bestCandidate = nil
+        local bestScore = -100000
+
+        for _, candidate in ipairs(SMART_ADVERTISER_CANDIDATES) do
+            if not usedLabels[candidate.label] then
+                local score = self:ScoreSmartAdvertiserCandidate(workingContext, candidate, config, baseRawScore or 0)
+                if score > bestScore then
+                    bestCandidate = candidate
+                    bestScore = score
+                end
+            end
+        end
+
+        if not bestCandidate or bestScore <= -50000 then
+            break
+        end
+
+        selected[#selected + 1] = bestCandidate.label
+        usedLabels[bestCandidate.label] = true
+        AddSmartAdvertiserCandidate(workingContext, bestCandidate, #workingContext.players + 1)
+    end
+
+    return selected
+end
+
+function Grouper:BuildSmartAdvertiserNeeds(context, config)
+    context = context or self:BuildOrganizerContext()
+    config = config or {}
+
+    local stats = SmartAdvertiserRosterStats(context.players)
+    local raidSize = config.size or context.configuredSize or defaults.raidSize
+    local desiredTanks = math.max(0, config.tanks or 0)
+    local desiredHealers = math.max(0, config.healers or 0)
+    local openSlots = math.max(0, raidSize - stats.rosterSize)
+    local tanksNeeded = math.max(0, desiredTanks - stats.tanks)
+    local healersNeeded = math.max(0, desiredHealers - stats.healers)
+    local dpsNeeded = math.max(0, openSlots - tanksNeeded - healersNeeded)
+    local roleNeeds = {}
+
+    if tanksNeeded > 0 then
+        roleNeeds[#roleNeeds + 1] = CountListText(tanksNeeded, "Tank")
+    end
+    if healersNeeded > 0 then
+        roleNeeds[#roleNeeds + 1] = CountListText(healersNeeded, "Healer")
+    end
+    if dpsNeeded > 0 and #roleNeeds == 0 then
+        roleNeeds[#roleNeeds + 1] = "DPS"
+    end
+
+    local maxSuggestions = math.min(openSlots, 4)
+    local specNeeds = self:SelectSmartAdvertiserCandidates(context, config, maxSuggestions)
+
+    return {
+        roleNeeds = roleNeeds,
+        specNeeds = specNeeds,
+        tanksNeeded = tanksNeeded,
+        healersNeeded = healersNeeded,
+        dpsNeeded = dpsNeeded,
+        openSlots = openSlots,
+        rosterSize = stats.rosterSize,
+        raidSize = raidSize,
+        stats = stats,
+    }
+end
+
+function Grouper:FormatSmartAdvertiserNeeds(needs)
+    if not needs or (needs.openSlots or 0) <= 0 then
+        return nil
+    end
+
+    local parts = {}
+    if needs.roleNeeds and #needs.roleNeeds > 0 then
+        parts[#parts + 1] = table.concat(needs.roleNeeds, ", ")
+    end
+    if needs.specNeeds and #needs.specNeeds > 0 then
+        parts[#parts + 1] = table.concat(needs.specNeeds, ", ")
+    elseif (needs.dpsNeeded or 0) > 0 and #(needs.roleNeeds or {}) == 0 then
+        parts[#parts + 1] = "DPS"
+    end
+
+    if #parts == 0 then
+        return "DPS"
+    end
+    return table.concat(parts, " / ")
+end
+
+function Grouper:GenerateSmartAdvertiserMessage(bossName, config)
+    local mode = self:GetSmartAdvertiserMode()
+    local context = self:BuildOrganizerContext({ guess = mode == SMART_ADVERTISER_MODE_GUESS })
+    local raidSize = config.size or GrouperDB.raidSize or defaults.raidSize
+    local numRaid = #(context.players or {})
+    local raidPercent = numRaid / raidSize
+
+    local msg
+    if raidPercent < 0.2 then
+        msg = string.format("LFM %s", bossName)
+    else
+        msg = string.format("LFM %s %d/%d", bossName, numRaid, raidSize)
+    end
+
+    local needsText = self:FormatSmartAdvertiserNeeds(self:BuildSmartAdvertiserNeeds(context, config))
+    if needsText and needsText ~= "" then
+        msg = msg .. " - Need " .. needsText
+    end
+
+    local hrItem = activeSession.hr or config.hr
+    if hrItem then
+        msg = msg .. " - " .. hrItem .. " HR"
+    end
+
+    local customText = config.custom
+    if customText and customText ~= "" then
+        msg = msg .. " - " .. customText
+    end
+
+    return msg, numRaid, raidSize
+end
+
 -- Generate recruitment message
 function Grouper:GenerateMessage()
     local numRaid, tanks, healers, classCounts = self:ScanRaid()
     local config = self:GetBossConfig(activeSession.boss)
     local raidSize = config.size or GrouperDB.raidSize or 25
+
+    if self:IsSmartAdvertiserEnabledForBoss(activeSession.boss, config) then
+        return self:GenerateSmartAdvertiserMessage(activeSession.boss, config)
+    end
 
     -- Calculate needs
     local tanksNeeded = math.max(0, config.tanks - tanks)
@@ -3428,6 +3771,7 @@ function Grouper:StartSession(boss, hrItem)
 
     self:CreateButtons()
     self:UpdateButtons()
+    self:RefreshSmartAdvertiserSpecPrompt()
 
     -- Create Group Finder listing (only on user-initiated start)
     self:UpdateLFGListing()
@@ -3446,6 +3790,10 @@ function Grouper:StopSession()
     end
 
     activeSession.active = false
+    if smartOrganizeSpecFrame and self.organizerSpecFrameMode == "advertiser" then
+        smartOrganizeSpecFrame:Hide()
+        self.organizerSpecFrameMode = nil
+    end
 
     -- Check for master loot (if API is available)
     if IsInRaid() and GetLootMethod then
@@ -3730,6 +4078,41 @@ function Grouper:CreateConfigUI()
     end)
     ApplyElvUISkin(killButton, "button")
     configFrame.killButton = killButton
+
+    -- Smart Advertiser mode
+    local smartModeLabel = configFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    smartModeLabel:SetPoint("TOPLEFT", configFrame, "TOPLEFT", 300, -95)
+    smartModeLabel:SetText("Smart Mode:")
+
+    local smartModeDropdown = CreateFrame("Frame", "GrouperSmartModeDropdown", configFrame, "UIDropDownMenuTemplate")
+    smartModeDropdown:SetPoint("TOPLEFT", smartModeLabel, "BOTTOMLEFT", -15, -5)
+    UIDropDownMenu_SetWidth(smartModeDropdown, 190)
+
+    local function OnSmartModeClick(self)
+        local mode = Grouper:SetSmartAdvertiserMode(self.value)
+        UIDropDownMenu_SetSelectedValue(smartModeDropdown, mode)
+        UIDropDownMenu_SetText(smartModeDropdown, SmartAdvertiserModeLabel(mode))
+        CloseDropDownMenus()
+        if activeSession.active then
+            Grouper:RefreshSmartAdvertiserSpecPrompt()
+        end
+    end
+
+    local function InitializeSmartModeDropdown(self, level)
+        for _, mode in ipairs(SMART_ADVERTISER_MODES) do
+            local info = UIDropDownMenu_CreateInfo()
+            info.text = mode.text
+            info.value = mode.value
+            info.func = OnSmartModeClick
+            info.checked = Grouper:GetSmartAdvertiserMode() == mode.value
+            UIDropDownMenu_AddButton(info)
+        end
+    end
+
+    UIDropDownMenu_Initialize(smartModeDropdown, InitializeSmartModeDropdown)
+    UIDropDownMenu_SetSelectedValue(smartModeDropdown, Grouper:GetSmartAdvertiserMode())
+    UIDropDownMenu_SetText(smartModeDropdown, SmartAdvertiserModeLabel(Grouper:GetSmartAdvertiserMode()))
+    configFrame.smartModeDropdown = smartModeDropdown
 
     yOffset = yOffset - 60
 
@@ -4041,6 +4424,10 @@ function Grouper:UpdateConfigUI()
     -- Update dropdown selection and text
     UIDropDownMenu_SetSelectedValue(GrouperBossDropdown, configFrame.selectedBoss)
     UIDropDownMenu_SetText(GrouperBossDropdown, configFrame.selectedBoss)
+    if configFrame.smartModeDropdown then
+        UIDropDownMenu_SetSelectedValue(configFrame.smartModeDropdown, self:GetSmartAdvertiserMode())
+        UIDropDownMenu_SetText(configFrame.smartModeDropdown, SmartAdvertiserModeLabel(self:GetSmartAdvertiserMode()))
+    end
 
     -- Update tracking label based on category
     if configFrame.killLabel and configFrame.killButton then
@@ -4768,7 +5155,23 @@ function Grouper:UpdateOrganizerSpecRow(row, selected)
     end
 end
 
-function Grouper:ShowOrganizerSpecFrame(uncertain)
+local function OrganizerChoiceMatches(left, right)
+    if not left or not right then return false end
+    if left == right then return true end
+    return left.spec == right.spec and NormalizeOrganizerRole(left.role) == NormalizeOrganizerRole(right.role)
+end
+
+local function FindOrganizerChoice(choices, wanted)
+    for _, choice in ipairs(choices or {}) do
+        if OrganizerChoiceMatches(choice, wanted) then
+            return choice
+        end
+    end
+    return nil
+end
+
+function Grouper:ShowOrganizerSpecFrame(uncertain, options)
+    options = options or {}
     if not uncertain or #uncertain == 0 then
         PrintGrouper("No uncertain role/spec assignments were found.")
         return
@@ -4780,8 +5183,37 @@ function Grouper:ShowOrganizerSpecFrame(uncertain)
         return
     end
 
+    local mode = options.mode == "advertiser" and "advertiser" or "organize"
+    self.organizerSpecFrameMode = mode
     self.pendingOrganizerSpecUnits = uncertain
+    local previousSelections = self.organizerSpecSelections or {}
     self.organizerSpecSelections = {}
+
+    if mode == "advertiser" then
+        frame.Title:SetText("Smart Advertiser: Assign Specs")
+        frame.Text:SetText("Select specs for players Grouper cannot infer. Recruiting messages will use these choices.")
+        frame.ApplyButton:SetText("Apply")
+        frame.GuessButton:SetText("Guess All")
+        frame.GuessButton:SetScript("OnClick", function()
+            Grouper:SetSmartAdvertiserMode(SMART_ADVERTISER_MODE_GUESS)
+            if configFrame and configFrame.smartModeDropdown then
+                UIDropDownMenu_SetSelectedValue(configFrame.smartModeDropdown, SMART_ADVERTISER_MODE_GUESS)
+                UIDropDownMenu_SetText(configFrame.smartModeDropdown, SmartAdvertiserModeLabel(SMART_ADVERTISER_MODE_GUESS))
+            end
+            frame:Hide()
+            Grouper.organizerSpecFrameMode = nil
+            PrintGrouper("Smart Mode set to On (guess all specs).")
+        end)
+    else
+        frame.Title:SetText("Smart Organize: Assign Specs")
+        frame.Text:SetText("Select specs for players Grouper cannot infer, then preview Smart Organize again.")
+        frame.ApplyButton:SetText("Preview")
+        frame.GuessButton:SetText("Guess")
+        frame.GuessButton:SetScript("OnClick", function()
+            frame:Hide()
+            Grouper:ShowSmartOrganizePreview({ guess = true })
+        end)
+    end
 
     local rowHeight = 34
     for index, unit in ipairs(uncertain) do
@@ -4804,8 +5236,9 @@ function Grouper:ShowOrganizerSpecFrame(uncertain)
         row.Name:SetText(unit.name .. " (" .. ClassLabel(unit.class) .. ")")
 
         local choices = self:GetOrganizerChoiceList(unit) or {}
-        local selected = choices[1]
-        self.organizerSpecSelections[unit.key or unit.name] = selected
+        local key = unit.key or unit.name
+        local selected = FindOrganizerChoice(choices, previousSelections[key]) or FindOrganizerChoice(choices, self:GetOrganizerManualChoice(unit)) or choices[1]
+        self.organizerSpecSelections[key] = selected
 
         for buttonIndex, choice in ipairs(choices) do
             local button = row.Buttons[buttonIndex]
@@ -4846,6 +5279,7 @@ function Grouper:ApplyOrganizerSpecSelections()
     local frame = smartOrganizeSpecFrame
     if not frame then return end
 
+    local mode = self.organizerSpecFrameMode or "organize"
     for _, unit in ipairs(self.pendingOrganizerSpecUnits or {}) do
         local choice = self.organizerSpecSelections and self.organizerSpecSelections[unit.key or unit.name]
         if choice then
@@ -4854,7 +5288,48 @@ function Grouper:ApplyOrganizerSpecSelections()
     end
 
     frame:Hide()
+    self.organizerSpecFrameMode = nil
+    if mode == "advertiser" then
+        PrintGrouper("Smart Advertiser spec choices saved.")
+        return
+    end
     self:ShowSmartOrganizePreview({ noPrompt = true })
+end
+
+function Grouper:RefreshSmartAdvertiserSpecPrompt()
+    if not activeSession.active then
+        return
+    end
+
+    local config = self:GetBossConfig(activeSession.boss)
+    if not self:IsSmartAdvertiserEnabledForBoss(activeSession.boss, config) then
+        if smartOrganizeSpecFrame and self.organizerSpecFrameMode == "advertiser" then
+            smartOrganizeSpecFrame:Hide()
+            self.organizerSpecFrameMode = nil
+        end
+        return
+    end
+
+    if self:GetSmartAdvertiserMode() ~= SMART_ADVERTISER_MODE_ASK then
+        if smartOrganizeSpecFrame and self.organizerSpecFrameMode == "advertiser" then
+            smartOrganizeSpecFrame:Hide()
+            self.organizerSpecFrameMode = nil
+        end
+        return
+    end
+
+    if not ((IsInRaid and IsInRaid()) or (IsInGroup and IsInGroup())) then
+        return
+    end
+
+    local context = self:BuildOrganizerContext()
+    local uncertain = self:GetUncertainOrganizerPlayers(context)
+    if #uncertain > 0 then
+        self:ShowOrganizerSpecFrame(uncertain, { mode = "advertiser" })
+    elseif smartOrganizeSpecFrame and self.organizerSpecFrameMode == "advertiser" then
+        smartOrganizeSpecFrame:Hide()
+        self.organizerSpecFrameMode = nil
+    end
 end
 
 function Grouper:ShowOrganizerGuessPrompt(uncertain)
@@ -5262,6 +5737,26 @@ function Grouper:HandleCommand(input)
             else
                 print("|cffff0000[Grouper]|r Invalid interval")
             end
+        elseif option == "smartmode" or option == "smart" then
+            local requested = string.lower(args[3] or "")
+            local mode
+            if requested == "ask" or requested == "on" or requested == "onask" then
+                mode = SMART_ADVERTISER_MODE_ASK
+            elseif requested == "off" then
+                mode = SMART_ADVERTISER_MODE_OFF
+            elseif requested == "guess" or requested == "onguess" then
+                mode = SMART_ADVERTISER_MODE_GUESS
+            end
+
+            if mode then
+                self:SetSmartAdvertiserMode(mode)
+                print("|cff00ff00[Grouper]|r Smart Mode set to " .. SmartAdvertiserModeLabel(mode))
+                if activeSession.active then
+                    self:RefreshSmartAdvertiserSpecPrompt()
+                end
+            else
+                print("|cffff0000[Grouper]|r Usage: /grouper set smartmode ask/off/guess")
+            end
         else
             print("|cffff0000[Grouper]|r Unknown setting: " .. option)
         end
@@ -5300,6 +5795,7 @@ function Grouper:ShowHelp()
     print("|cffffcc00/grouper set tradeinterval <seconds>|r - Set Trade spam interval")
     print("|cffffcc00/grouper set lfginterval <seconds>|r - Set LFG spam interval")
     print("|cffffcc00/grouper set generalinterval <seconds>|r - Set General spam interval")
+    print("|cffffcc00/grouper set smartmode ask/off/guess|r - Set TBC raid Smart Mode")
     print(" ")
     print("Debug Commands:")
     print("|cffffcc00/grouper debug|r - Show debug options")
@@ -5349,6 +5845,15 @@ Grouper._test = {
     BuildOrganizerPlanningContext = function(options)
         return Grouper:BuildOrganizerPlanningContext(options)
     end,
+    BuildSmartAdvertiserNeeds = function(context, config)
+        return Grouper:BuildSmartAdvertiserNeeds(context, config)
+    end,
+    FormatSmartAdvertiserNeeds = function(needs)
+        return Grouper:FormatSmartAdvertiserNeeds(needs)
+    end,
+    ScoreSmartAdvertiserCandidate = function(context, candidate, config, baseRawScore)
+        return Grouper:ScoreSmartAdvertiserCandidate(context, candidate, config, baseRawScore)
+    end,
 }
 
 if not _G.GROUPER_TEST_MODE then
@@ -5393,9 +5898,11 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
             Grouper:HandleVersionMessage(sender, message)
         elseif prefix == RAID_ORGANIZER_SPEC_PREFIX then
             Grouper:HandleOrganizerSpecMessage(sender, message)
+            Grouper:RefreshSmartAdvertiserSpecPrompt()
         end
     elseif event == "GROUP_ROSTER_UPDATE" or event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "PLAYER_TALENT_UPDATE" then
         Grouper:BroadcastOrganizerSpec()
+        Grouper:RefreshSmartAdvertiserSpecPrompt()
     end
 end)
 

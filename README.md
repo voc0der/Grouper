@@ -10,7 +10,7 @@ WoW Classic addon for managing PUG groups for raids, dungeons, and world bosses.
 - **Graphical UI** - Full configuration interface accessible via `/grouper`
 - **100+ Dungeons & Raids** - Pre-configured for all content from 5-mans to 40-man raids
 - **Automatic World Boss Kill Tracking** - Detects boss kills and records them with layer info
-- **Smart Messaging** - Auto-generates recruitment messages based on your raid composition
+- **Smart Messaging** - Auto-generates recruitment messages based on raid composition, with TBC Smart Mode for spec-aware raid ads
 - **Smart Raid Organization** - TBC-aware scored raid optimizer with spec prompts, planning simulations, low-move previews, and explanations for caster, melee, threat, mana, and healer groups
 - **Minimap Button** - Quick access to configuration (draggable, can be hidden)
 - **Channel Spam Buttons** - Click to post to Trade (in cities), LFG, or General channels
@@ -81,4 +81,5 @@ Advanced settings (or use the GUI):
 /grouper set hr azuregos Mature Blue Dragon Sinew
 /grouper set tradeinterval 300
 /grouper set lfginterval 300
+/grouper set smartmode ask
 ```

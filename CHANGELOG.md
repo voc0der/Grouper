@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.54] - 2026-05-26
+
+### Added
+- TBC raid Smart Mode for recruitment ads, with On (ask), Off, and On (guess all specs) settings, spec-aware roster prompts, and organizer-scored class/spec suggestions.
+
 ## [1.0.53] - 2026-05-26
 
 ### Changed
@@ -147,7 +152,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.53...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.54...HEAD
+[1.0.54]: https://github.com/voc0der/Grouper/compare/v1.0.53...v1.0.54
 [1.0.53]: https://github.com/voc0der/Grouper/compare/v1.0.52...v1.0.53
 [1.0.52]: https://github.com/voc0der/Grouper/compare/v1.0.51...v1.0.52
 [1.0.51]: https://github.com/voc0der/Grouper/compare/v1.0.50...v1.0.51
