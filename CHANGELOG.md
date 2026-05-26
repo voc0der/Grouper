@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.55] - 2026-05-26
+
+### Added
+- Smart Organize planning mode now includes 2x, 4x, and 8x fill simulations that show Smart Advertiser messages as simulated raiders join, then end on the scored comp preview.
+
 ## [1.0.54] - 2026-05-26
 
 ### Added
