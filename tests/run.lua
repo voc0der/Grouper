@@ -111,6 +111,12 @@ local function countMatching(players, predicate)
     return count
 end
 
+local function addUnits(players, count, prefix, class, role, spec, subgroup)
+    for index = 1, count do
+        players[#players + 1] = unit(prefix .. tostring(index), class, role, spec, subgroup)
+    end
+end
+
 test("caster pump groups elemental, boomkin, and three casters", function()
     local players = {
         unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
@@ -293,6 +299,92 @@ test("smart advertiser uses organizer scoring for balanced DPS suggestions", fun
     )
 end)
 
+test("smart advertiser writes human raid-lead messages", function()
+    local context4 = T.BuildOrganizerPlanningContext({
+        configuredSize = 25,
+        sequence = 2,
+        rosterSize = 4,
+    })
+    local msg4 = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6, hr = "DST", custom = "| gear check at Adal" }, context4)
+
+    assertEquals(msg4, "LFM Gruul (DST HR) - need all | gear check at Adal", "early ads should lead with LFM, attach HR to the raid name, and put custom text last")
+
+    local context9 = T.BuildOrganizerPlanningContext({
+        configuredSize = 25,
+        sequence = 2,
+        rosterSize = 9,
+    })
+    local msg9 = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context9)
+
+    assertEquals(msg9, "LFM Gruul 9/25 - need all", "early counted ads should stay broad")
+    assertTrue(string.find(msg9, "Priest Healer", 1, true) == nil, "message should not expose internal candidate labels")
+    assertTrue(string.find(msg9, " / ", 1, true) == nil, "message should not use machine-style slash-separated role blocks")
+    assertTrue(#msg9 <= 255, "message should stay chat-safe")
+end)
+
+test("smart advertiser keeps broad role asks readable near full", function()
+    local context20 = T.BuildOrganizerPlanningContext({
+        configuredSize = 25,
+        sequence = 2,
+        rosterSize = 20,
+    })
+    local msg20 = T.GenerateSmartAdvertiserMessageForContext("Serpentshrine Cavern", { size = 25, tanks = 3, healers = 7 }, context20)
+
+    assertEquals(msg20, "LFM SSC 20/25 - need heals", "late ads should not list every healer subtype when any healer works")
+    assertTrue(string.find(msg20, "6 heals", 1, true) == nil, "late fill ads should not ask for more roles than remaining slots")
+    assertTrue(#msg20 <= 255, "late fill message should stay concise")
+end)
+
+test("smart advertiser gets specific only when the slot is specific", function()
+    local tankPlayers = {
+        unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+    }
+    addUnits(tankPlayers, 7, "Heal", "PRIEST", "HEALER", "HOLY", 5)
+    addUnits(tankPlayers, 15, "Dps", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
+    local tankMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 7 }, context(tankPlayers))
+
+    assertEquals(tankMsg, "LFM Gruul 24/25 - need prot warr", "one missing tank slot should name the missing tank type")
+
+    local manyTankPlayers = {
+        unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
+    }
+    addUnits(manyTankPlayers, 7, "Heal", "PRIEST", "HEALER", "HOLY", 5)
+    addUnits(manyTankPlayers, 14, "Dps", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
+    local manyTankMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 7 }, context(manyTankPlayers))
+
+    assertEquals(manyTankMsg, "LFM Gruul 22/25 - need tanks", "multiple missing tanks should stay broad")
+end)
+
+test("smart advertiser can ask for melee or a specific caster", function()
+    local meleePlayers = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+    }
+    addUnits(meleePlayers, 7, "Heal", "PRIEST", "HEALER", "HOLY", 5)
+    addUnits(meleePlayers, 13, "Caster", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
+    local meleeMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 7 }, context(meleePlayers))
+
+    assertEquals(meleeMsg, "LFM Gruul 23/25 - need melee dps", "physical-light comps should ask for melee DPS")
+
+    local magePlayers = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+    }
+    addUnits(magePlayers, 7, "Heal", "PRIEST", "HEALER", "HOLY", 5)
+    magePlayers[#magePlayers + 1] = unit("Stormbolt", "SHAMAN", "DAMAGER", "ELEMENTAL", 3)
+    magePlayers[#magePlayers + 1] = unit("Moonchef", "DRUID", "DAMAGER", "BALANCE", 3)
+    magePlayers[#magePlayers + 1] = unit("Mindtap", "PRIEST", "DAMAGER", "SHADOW", 3)
+    magePlayers[#magePlayers + 1] = unit("Arcanist", "MAGE", "DAMAGER", "ARCANE", 3)
+    addUnits(magePlayers, 3, "Lock", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
+    addUnits(magePlayers, 7, "Melee", "ROGUE", "DAMAGER", "ROGUE_DPS", 2)
+    local mageMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 7 }, context(magePlayers))
+
+    assertEquals(mageMsg, "LFM Gruul 24/25 - need mage", "one caster slot should use the best specific class when clear")
+end)
+
 test("fill simulation logs ads and finishes with a scored comp", function()
     local state = T.BuildSmartAdvertiserFillState({
         bossName = "Serpentshrine Cavern",
@@ -305,7 +397,7 @@ test("fill simulation logs ads and finishes with a scored comp", function()
     assertEquals(state.speed, 8, "requested fill sim speed should be kept")
     assertEquals(state.currentSize, 4, "fill sim should start at the requested partial roster size")
     assertEquals(state.targetSize, 25, "fill sim should target a full 25-player raid")
-    assertTrue(logIncludes(state.log, "LFM Serpentshrine Cavern"), "initial fill sim log should include an ad")
+    assertTrue(logIncludes(state.log, "SSC") or logIncludes(state.log, "Serpentshrine Cavern"), "initial fill sim log should include an ad")
 
     local guard = 0
     while not state.complete and guard < 30 do
