@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.55"
+Grouper.version = "1.0.56"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -538,6 +538,41 @@ local SMART_ADVERTISER_CANDIDATES = {
     { label = "Feral DPS", class = "DRUID", role = ROLE_DAMAGER, spec = "FERAL", bucket = "physical", priority = 13, softCap = 1 },
 }
 
+local SMART_ADVERTISER_BOSS_ALIASES = {
+    ["Karazhan"] = "Kara",
+    ["Gruul's Lair"] = "Gruul",
+    ["Magtheridon's Lair"] = "Mag",
+    ["Serpentshrine Cavern"] = "SSC",
+    ["Tempest Keep"] = "TK",
+    ["Hyjal Summit"] = "Hyjal",
+    ["Black Temple"] = "BT",
+    ["Sunwell Plateau"] = "SWP",
+    ["Zul'Aman"] = "ZA",
+}
+
+local SMART_ADVERTISER_SHORT_LABELS = {
+    ["Prot Paladin"] = "prot pal",
+    ["Feral Tank"] = "bear",
+    ["Prot Warrior"] = "prot warr",
+    ["Resto Shaman"] = "rsham",
+    ["Priest Healer"] = "priest",
+    ["Holy Paladin"] = "hpal",
+    ["Resto Druid"] = "rdruid",
+    ["Ele Shaman"] = "ele",
+    ["Enh Shaman"] = "enh",
+    ["Boomkin"] = "boomkin",
+    ["Shadow Priest"] = "spriest",
+    ["Warlock"] = "lock",
+    ["Mage"] = "mage",
+    ["Arcane Mage"] = "arcane mage",
+    ["Survival Hunter"] = "surv hunter",
+    ["Hunter"] = "hunter",
+    ["Warrior DPS"] = "warrior",
+    ["Rogue"] = "rogue",
+    ["Ret Paladin"] = "ret",
+    ["Feral DPS"] = "feral",
+}
+
 local function PrintGrouper(message, color)
     local prefix = "|cff00ff00[Grouper]|r "
     if color then
@@ -650,6 +685,138 @@ local function CountListText(count, singular, plural)
         return "1 " .. singular
     end
     return tostring(count) .. " " .. (plural or (singular .. "s"))
+end
+
+local function SmartAdvertiserBossLabel(bossName)
+    return SMART_ADVERTISER_BOSS_ALIASES[bossName] or bossName or "raid"
+end
+
+local function SmartAdvertiserShortNeedLabel(label)
+    return SMART_ADVERTISER_SHORT_LABELS[label] or string.lower(tostring(label or ""))
+end
+
+local function SmartAdvertiserCandidateForLabel(label)
+    for _, candidate in ipairs(SMART_ADVERTISER_CANDIDATES) do
+        if candidate.label == label then
+            return candidate
+        end
+    end
+    return nil
+end
+
+local function SmartAdvertiserJoinNeeds(parts)
+    if not parts or #parts == 0 then
+        return "DPS"
+    end
+    return table.concat(parts, " + ")
+end
+
+local function SmartAdvertiserRoleBucketCount(needs)
+    local count = 0
+    if (needs.tanksNeeded or 0) > 0 then count = count + 1 end
+    if (needs.healersNeeded or 0) > 0 then count = count + 1 end
+    if (needs.dpsNeeded or 0) > 0 then count = count + 1 end
+    return count
+end
+
+local function SmartAdvertiserFirstSpecNeed(needs, role, bucket)
+    for _, label in ipairs(needs and needs.specNeeds or {}) do
+        local candidate = SmartAdvertiserCandidateForLabel(label)
+        if candidate and NormalizeOrganizerRole(candidate.role) == role and (not bucket or candidate.bucket == bucket) then
+            return label
+        end
+    end
+    return nil
+end
+
+local function SmartAdvertiserDpsBucketNeed(needs)
+    local stats = needs and needs.stats or {}
+    local desiredDps = math.max(0, (needs.raidSize or 0) - (needs.desiredTanks or 0) - (needs.desiredHealers or 0))
+    local desiredCasterDps = math.ceil(desiredDps / 2)
+    local desiredPhysicalDps = desiredDps - desiredCasterDps
+    local casterDeficit = desiredCasterDps - (stats.casterDps or 0)
+    local physicalDeficit = desiredPhysicalDps - (stats.physicalDps or 0)
+
+    if physicalDeficit > casterDeficit and physicalDeficit > 0 then
+        return "melee dps", "physical"
+    end
+    if casterDeficit > physicalDeficit and casterDeficit > 0 then
+        return "caster dps", "caster"
+    end
+    return "DPS", nil
+end
+
+local function SmartAdvertiserSpecificDpsNeed(needs)
+    local _, bucket = SmartAdvertiserDpsBucketNeed(needs)
+    local label = SmartAdvertiserFirstSpecNeed(needs, ROLE_DAMAGER, bucket) or SmartAdvertiserFirstSpecNeed(needs, ROLE_DAMAGER)
+    return label and SmartAdvertiserShortNeedLabel(label) or SmartAdvertiserDpsBucketNeed(needs)
+end
+
+local function SmartAdvertiserTankNeedText(needs)
+    if (needs.tanksNeeded or 0) > 1 then
+        return "tanks"
+    end
+    local label = SmartAdvertiserFirstSpecNeed(needs, ROLE_TANK)
+    return label and SmartAdvertiserShortNeedLabel(label) or "tank"
+end
+
+local function SmartAdvertiserHealerNeedText(needs)
+    if (needs.healersNeeded or 0) > 1 then
+        return "heals"
+    end
+    local label = SmartAdvertiserFirstSpecNeed(needs, ROLE_HEALER)
+    return label and SmartAdvertiserShortNeedLabel(label) or "healer"
+end
+
+local function SmartAdvertiserDpsNeedText(needs)
+    if (needs.dpsNeeded or 0) > 1 then
+        return SmartAdvertiserDpsBucketNeed(needs)
+    end
+    return SmartAdvertiserSpecificDpsNeed(needs)
+end
+
+local function SmartAdvertiserBroadRoleNeedText(needs)
+    local parts = {}
+    if (needs.tanksNeeded or 0) > 0 then
+        parts[#parts + 1] = (needs.tanksNeeded or 0) > 1 and "tanks" or "tank"
+    end
+    if (needs.healersNeeded or 0) > 0 then
+        parts[#parts + 1] = "heals"
+    end
+    if (needs.dpsNeeded or 0) > 0 then
+        parts[#parts + 1] = SmartAdvertiserDpsNeedText(needs)
+    end
+    return SmartAdvertiserJoinNeeds(parts)
+end
+
+local function SmartAdvertiserNeedText(needs)
+    if not needs or (needs.openSlots or 0) <= 0 then
+        return nil
+    end
+
+    if (needs.rosterSize or 0) < 7 then
+        return "all"
+    end
+
+    local roleBucketCount = SmartAdvertiserRoleBucketCount(needs)
+    if (needs.openSlots or 0) > 6 then
+        if roleBucketCount > 1 then
+            return "all"
+        end
+        return SmartAdvertiserBroadRoleNeedText(needs)
+    end
+
+    if (needs.tanksNeeded or 0) > 0 then
+        return SmartAdvertiserTankNeedText(needs)
+    end
+    if (needs.healersNeeded or 0) > 0 then
+        return SmartAdvertiserHealerNeedText(needs)
+    end
+    if (needs.dpsNeeded or 0) > 0 then
+        return SmartAdvertiserDpsNeedText(needs)
+    end
+
+    return "DPS"
 end
 
 local function IsOrganizerSpec(unit, spec)
@@ -3348,8 +3515,8 @@ function Grouper:BuildSmartAdvertiserNeeds(context, config)
     local desiredTanks = math.max(0, config.tanks or 0)
     local desiredHealers = math.max(0, config.healers or 0)
     local openSlots = math.max(0, raidSize - stats.rosterSize)
-    local tanksNeeded = math.max(0, desiredTanks - stats.tanks)
-    local healersNeeded = math.max(0, desiredHealers - stats.healers)
+    local tanksNeeded = math.min(openSlots, math.max(0, desiredTanks - stats.tanks))
+    local healersNeeded = math.min(math.max(0, openSlots - tanksNeeded), math.max(0, desiredHealers - stats.healers))
     local dpsNeeded = math.max(0, openSlots - tanksNeeded - healersNeeded)
     local roleNeeds = {}
 
@@ -3363,7 +3530,7 @@ function Grouper:BuildSmartAdvertiserNeeds(context, config)
         roleNeeds[#roleNeeds + 1] = "DPS"
     end
 
-    local maxSuggestions = math.min(openSlots, 4)
+    local maxSuggestions = openSlots <= 6 and math.min(openSlots, 5) or math.min(openSlots, 4)
     local specNeeds = self:SelectSmartAdvertiserCandidates(context, config, maxSuggestions)
 
     return {
@@ -3375,6 +3542,8 @@ function Grouper:BuildSmartAdvertiserNeeds(context, config)
         openSlots = openSlots,
         rosterSize = stats.rosterSize,
         raidSize = raidSize,
+        desiredTanks = desiredTanks,
+        desiredHealers = desiredHealers,
         stats = stats,
     }
 end
@@ -3384,20 +3553,7 @@ function Grouper:FormatSmartAdvertiserNeeds(needs)
         return nil
     end
 
-    local parts = {}
-    if needs.roleNeeds and #needs.roleNeeds > 0 then
-        parts[#parts + 1] = table.concat(needs.roleNeeds, ", ")
-    end
-    if needs.specNeeds and #needs.specNeeds > 0 then
-        parts[#parts + 1] = table.concat(needs.specNeeds, ", ")
-    elseif (needs.dpsNeeded or 0) > 0 and #(needs.roleNeeds or {}) == 0 then
-        parts[#parts + 1] = "DPS"
-    end
-
-    if #parts == 0 then
-        return "DPS"
-    end
-    return table.concat(parts, " / ")
+    return SmartAdvertiserNeedText(needs)
 end
 
 function Grouper:GenerateSmartAdvertiserMessageForContext(bossName, config, context, options)
@@ -3406,34 +3562,41 @@ function Grouper:GenerateSmartAdvertiserMessageForContext(bossName, config, cont
     context = context or { players = {}, configuredSize = config.size or defaults.raidSize }
     local raidSize = config.size or context.configuredSize or (GrouperDB and GrouperDB.raidSize) or defaults.raidSize
     local numRaid = #(context.players or {})
-    local raidPercent = numRaid / raidSize
-
-    local msg
-    if raidPercent < 0.2 then
-        msg = string.format("LFM %s", bossName)
-    else
-        msg = string.format("LFM %s %d/%d", bossName, numRaid, raidSize)
-    end
-
-    local needsText = self:FormatSmartAdvertiserNeeds(self:BuildSmartAdvertiserNeeds(context, config))
-    if needsText and needsText ~= "" then
-        msg = msg .. " - Need " .. needsText
-    end
+    local openSlots = math.max(0, raidSize - numRaid)
+    local bossLabel = SmartAdvertiserBossLabel(bossName)
+    local needs = self:BuildSmartAdvertiserNeeds(context, config)
+    local needText = SmartAdvertiserNeedText(needs) or "DPS"
 
     local hrItem = options.hrItem
     if hrItem == nil then
         hrItem = config.hr
     end
-    if hrItem then
-        msg = msg .. " - " .. hrItem .. " HR"
+
+    local header = "LFM " .. bossLabel
+    if hrItem and hrItem ~= "" then
+        header = header .. " (" .. hrItem .. " HR)"
+    end
+    if numRaid >= 7 then
+        header = string.format("%s %d/%d", header, numRaid, raidSize)
+    end
+
+    local msg
+    if openSlots <= 0 then
+        msg = header .. " - full"
+    else
+        msg = header .. " - need " .. needText
     end
 
     local customText = config.custom
     if customText and customText ~= "" then
-        msg = msg .. " - " .. customText
+        if string.match(customText, "^%s*[%|%-]") then
+            msg = msg .. " " .. customText
+        else
+            msg = msg .. " - " .. customText
+        end
     end
 
-    return msg, numRaid, raidSize
+    return ShortText(msg, 255), numRaid, raidSize
 end
 
 function Grouper:GenerateSmartAdvertiserMessage(bossName, config)

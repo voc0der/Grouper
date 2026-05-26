@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.56] - 2026-05-26
+
+### Changed
+- Smart Advertiser messages now use raid-lead phrasing with `LFM` first, HR next to the raid name, custom text last, broad early asks, and specific late asks only when the missing slot is clear.
+
 ## [1.0.55] - 2026-05-26
 
 ### Added
