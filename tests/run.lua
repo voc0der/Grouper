@@ -53,6 +53,16 @@ local function statsForGroup(plan, index)
     return plan.groups[index] and plan.groups[index].stats or {}
 end
 
+local function groupMissingIncludes(plan, index, text)
+    local group = plan.groups[index]
+    for _, missing in ipairs(group and group.missing or {}) do
+        if missing == text then
+            return true
+        end
+    end
+    return false
+end
+
 test("caster pump groups elemental, boomkin, and three casters", function()
     local players = {
         unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
@@ -132,6 +142,28 @@ test("uncertain DPS specs are prompted, tanks and healers are obvious", function
 
     local uncertain = T.GetUncertainOrganizerPlayers(context(players))
     assertEquals(#uncertain, 4, "only ambiguous DPS specs should be prompted")
+end)
+
+test("planning mode stages casters in group three even when elemental is missing", function()
+    local planningContext = T.BuildOrganizerPlanningContext({ configuredSize = 25, sequence = 1 })
+    assertTrue(planningContext.simulation, "planning context should be marked as a simulation")
+    assertEquals(planningContext.rosterSize, 23, "first planning scenario should be a partial 23-player raid")
+    assertEquals(planningContext.groupCount, 5, "25-player planning should keep groups 1-5 available")
+
+    local plan = T.BuildSmartOrganizePlan(planningContext)
+    local stats = statsForGroup(plan, 3)
+    assertTrue(plan.simulation, "planning plan should be marked as a simulation")
+    assertTrue(stats.casterDps >= 3, "caster group should still be populated before the missing elemental joins")
+    assertTrue(stats.mages >= 2, "mages should be teed up in the caster group")
+    assertEquals(stats.elemental, 0, "scenario intentionally has no elemental shaman")
+    assertTrue(groupMissingIncludes(plan, 3, "Elemental Shaman"), "caster group should call out the missing elemental")
+end)
+
+test("planning mode respects 20-player raid sizes", function()
+    local planningContext = T.BuildOrganizerPlanningContext({ configuredSize = 20, sequence = 1 })
+    assertEquals(planningContext.configuredSize, 20, "configured size should stay at 20")
+    assertEquals(planningContext.rosterSize, 20, "20-player planning scenario should fill to 20")
+    assertEquals(planningContext.groupCount, 4, "20-player raids should use four groups")
 end)
 
 local failures = 0
