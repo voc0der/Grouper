@@ -2,72 +2,74 @@
 
 ## Multi-Expansion Support
 
-Grouper supports Classic, TBC, and WOTLK in a **single unified addon**. The TOC file specifies multiple interface versions:
+Grouper supports Classic Era, TBC Anniversary Classic, and Wrath Classic in a single unified addon. The TOC file specifies multiple interface versions:
 
-```
+```text
 ## Interface: 11507, 20505, 30403
 ```
 
-This tells CurseForge that ONE addon works with all three game versions. Players on any expansion download the same package.
+Players on any supported Classic client download the same package.
+
+## Workflow Prerequisites
+
+Before automated release can work end-to-end, configure:
+
+1. GitHub Actions secret `RELEASE_PAT`
+   - Fine-grained token with repository `Contents: Read and write`
+   - Needed so tag push can trigger the release workflow
+2. GitHub Actions secret `CF_API_KEY`
+   - CurseForge API token used by `BigWigsMods/packager`
+3. CurseForge project metadata in addon TOC / `.pkgmeta`
+   - `## X-Curse-Project-ID: 1421970`
+   - `curse-project-id: 1421970`
+   - Project page: `https://www.curseforge.com/wow/addons/grouper`
 
 ## Release Process
 
-### Option 1: GitHub Releases (Automated via CurseForge)
+### Automated (GitHub Actions)
 
 1. Update version in `Grouper.toc` and `Grouper.lua`
 2. Update `CHANGELOG.md` with release notes
-3. Commit and push to GitHub:
+3. Commit and push to `main`
+4. CI automatically creates a tag from the TOC version and triggers the packager
+
+### PR Build Artifacts
+
+- Add the `build` label to a pull request when you want the PR packaging workflows to post a downloadable addon zip artifact comment for that PR head commit.
+
+### Troubleshooting
+
+- No new tag created:
+  - Check `## Version:` in `Grouper.toc` is bumped, for example `1.0.48`
+  - If tag already exists, for example `v1.0.48`, workflow will skip by design
+- Tag created but no CurseForge upload:
+  - Confirm `CF_API_KEY` exists in repo secrets
+  - Confirm `## X-Curse-Project-ID:` and `.pkgmeta` project metadata are set to valid numeric project IDs
+- Tag workflow failing authentication:
+  - Confirm `RELEASE_PAT` exists and has repo contents write permissions
+  - If using org SSO, ensure the token is authorized for the org
+
+### Manual Upload to CurseForge
+
+1. Create a zip file:
    ```bash
-   git add -A
-   git commit -m "Release v1.0.X"
-   git tag v1.0.X
-   git push origin main --tags
+   cd /home/vocoder/Code/Grouper
+   rm -rf dist
+   bash ./.github/scripts/stage-addon.sh dist/Grouper
+   cd dist
+   zip -r Grouper-v1.0.X.zip Grouper
    ```
-4. CurseForge will automatically pick up the tag and release ONE addon marked as compatible with all three expansions
-
-### Option 2: Manual Upload to CurseForge
-
-1. Create a zip file of the addon:
-   ```bash
-   cd /home/vocoder/Code
-   zip -r Grouper-v1.0.X.zip Grouper -x "*.git*" -x "*README.md"
-   ```
-2. Go to [CurseForge Project Page](https://www.curseforge.com/wow/addons/grouper/files)
-3. Upload the zip file
-4. CurseForge will mark it as compatible with all three game versions:
-   - Classic (11507)
-   - TBC (20505)
-   - WOTLK (30403)
-
-### Option 3: Using CF CLI
-
-If you have the CurseForge CLI tool:
-```bash
-cf-cli upload --project-id 1421970 --version 1.0.X
-```
+2. Upload at the CurseForge project files page.
 
 ## What Gets Released
 
-The `.pkgmeta` file controls what gets included in the single package:
-- ✅ Grouper.lua
-- ✅ Grouper.toc
-- ✅ CHANGELOG.md
-- ❌ README.md (excluded)
-- ❌ .git files (excluded)
+Only runtime addon files should ship to players.
 
-## Automatic Features
+The PR package workflow stages files directly from `Grouper.toc`, and the release workflow verifies that `.pkgmeta` produces the same runtime-only tree before uploading to GitHub and CurseForge.
 
-CurseForge will:
-- Mark the addon as compatible with Classic, TBC, and WOTLK
-- Parse the CHANGELOG.md for release notes
-- Show the addon as available for all three game versions
-- Players download the SAME addon regardless of which expansion they play
+For the current addon, the packaged game files are:
 
-## Version Numbering
+- `Grouper.toc`
+- `Grouper.lua`
 
-Follow semantic versioning: `MAJOR.MINOR.PATCH`
-- MAJOR: Breaking changes
-- MINOR: New features
-- PATCH: Bug fixes
-
-Current version: 1.0.47
+Non-game files such as `tests/`, docs, and repo metadata must stay out of the final addon archive.

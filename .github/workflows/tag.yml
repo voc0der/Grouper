@@ -16,13 +16,21 @@ jobs:
     # Don't run on bot pushes (safety)
     if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
+    env:
+      RELEASE_PAT: ${{ secrets.RELEASE_PAT }}
 
     steps:
       - name: Checkout (use PAT so tag push triggers other workflows)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_PAT }}
+          token: ${{ env.RELEASE_PAT != '' && env.RELEASE_PAT || github.token }}
+
+      - name: Warn when RELEASE_PAT is missing
+        if: ${{ env.RELEASE_PAT == '' }}
+        shell: bash
+        run: |
+          echo "::warning::RELEASE_PAT is not configured. This workflow can still create a tag, but tag-triggered workflows may not run. Add RELEASE_PAT for fully automated releases."
 
       - name: Read version from TOC
         id: ver
@@ -36,6 +44,12 @@ jobs:
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "tag=v$v" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force origin
 
       - name: Check if tag already exists
         id: exists
@@ -57,3 +71,10 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "${{ steps.ver.outputs.tag }}" -m "${{ steps.ver.outputs.tag }}"
           git push origin "${{ steps.ver.outputs.tag }}"
+
+      - name: Explain skip when tag already exists
+        if: steps.exists.outputs.exists == 'true'
+        shell: bash
+        run: |
+          echo "Tag ${{ steps.ver.outputs.tag }} already exists."
+          echo "Bump ## Version in Grouper.toc before pushing to main."

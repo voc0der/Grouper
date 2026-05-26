@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Smart Organize raid optimizer with role/spec prompts, guessed-spec fallback, scored party synergy, preview explanations, warnings, and leader/assistant-gated apply flow.
+- TBC party-placement scoring for threat, physical DPS, caster pump, shadow-priest mana, and healer/overflow raid groups.
+- Local Lua tests for Smart Organize scoring and ambiguity handling.
+- Runtime-only packaging harness with PR addon artifact workflows and release package verification.
+- `CONTRIBUTING.md` development guide.
+
+### Changed
+- Release documentation now matches the automated tag/package workflow used by sibling addon repos.
+
 ## [1.0.47] - 2026-05-17
 
 ### Changed

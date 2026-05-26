@@ -1,0 +1,54 @@
+name: PR Addon Package
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-package-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify release package contents
+        shell: bash
+        run: bash ./.github/scripts/verify-release-package.sh
+
+      - name: Install Lua
+        run: sudo apt-get install -y lua5.1
+
+      - name: Run syntax check
+        shell: bash
+        run: luac5.1 -p Grouper.lua tests/run.lua
+
+      - name: Run tests
+        shell: bash
+        run: lua5.1 tests/run.lua
+
+      - name: Build addon package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_dir="dist/Grouper"
+          bash ./.github/scripts/stage-addon.sh "$package_dir"
+
+      - name: Upload addon zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: Grouper-pr-${{ github.event.pull_request.number }}
+          path: dist/Grouper
+          if-no-files-found: error
+          retention-days: 14
