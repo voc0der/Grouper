@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.49"
+Grouper.version = "1.0.50"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -250,6 +250,18 @@ local CLASS_LABELS = {
     DRUID = "Druid",
 }
 
+local CLASS_COLORS = {
+    WARRIOR = { 0.78, 0.61, 0.43 },
+    PALADIN = { 0.96, 0.55, 0.73 },
+    HUNTER = { 0.67, 0.83, 0.45 },
+    ROGUE = { 1.00, 0.96, 0.41 },
+    PRIEST = { 1.00, 1.00, 1.00 },
+    SHAMAN = { 0.00, 0.44, 0.87 },
+    MAGE = { 0.25, 0.78, 0.92 },
+    WARLOCK = { 0.53, 0.53, 0.93 },
+    DRUID = { 1.00, 0.49, 0.04 },
+}
+
 local SPEC_LABELS = {
     PROTECTION = "Protection",
     HOLY = "Holy",
@@ -324,6 +336,132 @@ local LOCAL_TALENT_TAB_SPECS = {
     ROGUE = { "ROGUE_DPS", "ROGUE_DPS", "ROGUE_DPS" },
 }
 
+local ORGANIZER_PLANNING_SCENARIOS_25 = {
+    {
+        name = "23/25 caster setup, missing Elemental",
+        configuredSize = 25,
+        rosterSize = 23,
+        players = {
+            { name = "Aegis", class = "WARRIOR", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Brick", class = "PALADIN", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Rootguard", class = "DRUID", role = ROLE_TANK, spec = "FERAL_TANK" },
+            { name = "Windline", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ENHANCEMENT" },
+            { name = "Ironcall", class = "WARRIOR", role = ROLE_DAMAGER, spec = "WARRIOR_DPS" },
+            { name = "Slice", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Quickstep", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Longshot", class = "HUNTER", role = ROLE_DAMAGER, spec = "MARKSMANSHIP" },
+            { name = "Arrowline", class = "HUNTER", role = ROLE_DAMAGER, spec = "SURVIVAL" },
+            { name = "Starfall", class = "DRUID", role = ROLE_DAMAGER, spec = "BALANCE" },
+            { name = "Frostline", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Ember", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Arcanum", class = "MAGE", role = ROLE_DAMAGER, spec = "ARCANE" },
+            { name = "Hexlight", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Dotweaver", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Mindwell", class = "PRIEST", role = ROLE_DAMAGER, spec = "SHADOW" },
+            { name = "Grace", class = "PRIEST", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Beacon", class = "PALADIN", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Wave", class = "SHAMAN", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Grove", class = "DRUID", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Renewal", class = "PRIEST", role = ROLE_HEALER, spec = "DISCIPLINE" },
+            { name = "Resolve", class = "PALADIN", role = ROLE_DAMAGER, spec = "RETRIBUTION" },
+            { name = "Claws", class = "DRUID", role = ROLE_DAMAGER, spec = "FERAL" },
+        },
+    },
+    {
+        name = "Full 25/25 mixed raid",
+        configuredSize = 25,
+        rosterSize = 25,
+        players = {
+            { name = "Bulwark", class = "WARRIOR", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Tankadin", class = "PALADIN", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Bearwall", class = "DRUID", role = ROLE_TANK, spec = "FERAL_TANK" },
+            { name = "Windfury", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ENHANCEMENT" },
+            { name = "Stormbolt", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ELEMENTAL" },
+            { name = "Moonchef", class = "DRUID", role = ROLE_DAMAGER, spec = "BALANCE" },
+            { name = "Backstab", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Shadowcut", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Slammer", class = "WARRIOR", role = ROLE_DAMAGER, spec = "WARRIOR_DPS" },
+            { name = "Retadin", class = "PALADIN", role = ROLE_DAMAGER, spec = "RETRIBUTION" },
+            { name = "Catshift", class = "DRUID", role = ROLE_DAMAGER, spec = "FERAL" },
+            { name = "Marks", class = "HUNTER", role = ROLE_DAMAGER, spec = "MARKSMANSHIP" },
+            { name = "Surv", class = "HUNTER", role = ROLE_DAMAGER, spec = "SURVIVAL" },
+            { name = "Dotone", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Dottwo", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Frosty", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Flare", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Arcanist", class = "MAGE", role = ROLE_DAMAGER, spec = "ARCANE" },
+            { name = "Mindtap", class = "PRIEST", role = ROLE_DAMAGER, spec = "SHADOW" },
+            { name = "Prayer", class = "PRIEST", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Lightwell", class = "PRIEST", role = ROLE_HEALER, spec = "DISCIPLINE" },
+            { name = "Chainheal", class = "SHAMAN", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Tree", class = "DRUID", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Holyshield", class = "PALADIN", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Cleanse", class = "PALADIN", role = ROLE_HEALER, spec = "HOLY" },
+        },
+    },
+    {
+        name = "20/25 partial raid",
+        configuredSize = 25,
+        rosterSize = 20,
+        players = {
+            { name = "Anchor", class = "WARRIOR", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Ward", class = "PALADIN", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Totem", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ENHANCEMENT" },
+            { name = "Spark", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ELEMENTAL" },
+            { name = "Moonbeam", class = "DRUID", role = ROLE_DAMAGER, spec = "BALANCE" },
+            { name = "Blade", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Shout", class = "WARRIOR", role = ROLE_DAMAGER, spec = "WARRIOR_DPS" },
+            { name = "Aura", class = "PALADIN", role = ROLE_DAMAGER, spec = "RETRIBUTION" },
+            { name = "Arrow", class = "HUNTER", role = ROLE_DAMAGER, spec = "MARKSMANSHIP" },
+            { name = "Volley", class = "HUNTER", role = ROLE_DAMAGER, spec = "BEAST_MASTERY" },
+            { name = "Bolt", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Curse", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Nova", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Arc", class = "MAGE", role = ROLE_DAMAGER, spec = "ARCANE" },
+            { name = "Vamp", class = "PRIEST", role = ROLE_DAMAGER, spec = "SHADOW" },
+            { name = "Mend", class = "PRIEST", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Tide", class = "SHAMAN", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Bloom", class = "DRUID", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Flash", class = "PALADIN", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Renew", class = "PRIEST", role = ROLE_HEALER, spec = "DISCIPLINE" },
+        },
+    },
+}
+
+local ORGANIZER_PLANNING_SCENARIOS_20 = {
+    {
+        name = "20/20 raid",
+        configuredSize = 20,
+        rosterSize = 20,
+        players = ORGANIZER_PLANNING_SCENARIOS_25[3].players,
+    },
+    {
+        name = "18/20 raid, missing support",
+        configuredSize = 20,
+        rosterSize = 18,
+        players = {
+            { name = "Stone", class = "WARRIOR", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Shield", class = "PALADIN", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Wind", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ENHANCEMENT" },
+            { name = "Starlit", class = "DRUID", role = ROLE_DAMAGER, spec = "BALANCE" },
+            { name = "Steel", class = "WARRIOR", role = ROLE_DAMAGER, spec = "WARRIOR_DPS" },
+            { name = "Dagger", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Ambush", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Aim", class = "HUNTER", role = ROLE_DAMAGER, spec = "MARKSMANSHIP" },
+            { name = "Frost", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Pyre", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Rune", class = "MAGE", role = ROLE_DAMAGER, spec = "ARCANE" },
+            { name = "Malice", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Siphon", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Veil", class = "PRIEST", role = ROLE_DAMAGER, spec = "SHADOW" },
+            { name = "Light", class = "PRIEST", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "River", class = "SHAMAN", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Leaf", class = "DRUID", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Bless", class = "PALADIN", role = ROLE_HEALER, spec = "HOLY" },
+        },
+    },
+}
+
 local function PrintGrouper(message, color)
     local prefix = "|cff00ff00[Grouper]|r "
     if color then
@@ -382,6 +520,18 @@ end
 
 local function ClassLabel(classFile)
     return CLASS_LABELS[classFile] or classFile or "Unknown"
+end
+
+local function ClassColor(classFile)
+    return CLASS_COLORS[classFile] or { 0.55, 0.55, 0.55 }
+end
+
+local function ShortText(text, maxLength)
+    text = tostring(text or "")
+    if maxLength and string.len(text) > maxLength then
+        return string.sub(text, 1, math.max(1, maxLength - 1)) .. "."
+    end
+    return text
 end
 
 local function AddName(list, unit)
@@ -1814,6 +1964,88 @@ function Grouper:BuildOrganizerContext(options)
     }
 end
 
+local function GetOrganizerPlanningScenarios(configuredSize)
+    if (configuredSize or 25) <= 20 then
+        return ORGANIZER_PLANNING_SCENARIOS_20
+    end
+    return ORGANIZER_PLANNING_SCENARIOS_25
+end
+
+local function GetOrganizerPlanningSubgroup(playerIndex, sequence, groupCount)
+    if not groupCount or groupCount <= 1 then
+        return 1
+    end
+    return ((playerIndex * 3 + sequence * 2) % groupCount) + 1
+end
+
+function Grouper:BuildOrganizerPlanningContext(options)
+    options = options or {}
+    local configuredSize = math.floor(SafeNumber(options.configuredSize or self:GetConfiguredOrganizerSize(), 25) + 0.5)
+    configuredSize = Clamp(configuredSize, RAID_GROUP_SIZE, 40)
+
+    local scenarios = GetOrganizerPlanningScenarios(configuredSize)
+    local sequence = math.max(1, SafeNumber(options.sequence, 1))
+    local scenario = scenarios[((sequence - 1) % #scenarios) + 1]
+    local rosterSize = math.min(scenario.rosterSize or #scenario.players, #scenario.players)
+    if configuredSize <= 20 then
+        rosterSize = math.min(rosterSize, configuredSize)
+    end
+
+    local desiredSize = math.max(rosterSize, configuredSize)
+    local groupCount = math.ceil(desiredSize / RAID_GROUP_SIZE)
+    if rosterSize <= 25 and configuredSize >= 25 then
+        groupCount = math.max(groupCount, 5)
+    end
+    groupCount = Clamp(groupCount, 1, 8)
+
+    local players = {}
+    for index = 1, rosterSize do
+        local entry = scenario.players[index]
+        local role = entry.role or RoleFromSpec(entry.class, entry.spec, ROLE_NONE)
+        local unit = {
+            unit = nil,
+            raidIndex = index,
+            key = "Planning:" .. entry.name,
+            name = entry.name,
+            fullName = entry.name,
+            class = entry.class,
+            subgroup = GetOrganizerPlanningSubgroup(index, sequence, groupCount),
+            rank = 0,
+            role = role,
+            spec = entry.spec,
+            mainTank = entry.mainTank == true,
+            simulated = true,
+        }
+        self:UpdateOrganizerTags(unit)
+        players[#players + 1] = unit
+    end
+
+    table.sort(players, function(a, b)
+        if (a.subgroup or 1) ~= (b.subgroup or 1) then
+            return (a.subgroup or 1) < (b.subgroup or 1)
+        end
+        return (a.name or "") < (b.name or "")
+    end)
+
+    return {
+        players = players,
+        groupCount = groupCount,
+        configuredSize = configuredSize,
+        guess = true,
+        simulation = true,
+        scenarioName = scenario.name,
+        sequence = sequence,
+        rosterSize = #players,
+    }
+end
+
+function Grouper:BuildNextOrganizerPlanningContext(options)
+    options = options or {}
+    self.smartOrganizePlanningCounter = (self.smartOrganizePlanningCounter or 0) + 1
+    options.sequence = self.smartOrganizePlanningCounter
+    return self:BuildOrganizerPlanningContext(options)
+end
+
 local function NewOrganizerLayout(groupCount)
     local layout = {}
     for groupIndex = 1, groupCount do
@@ -2742,6 +2974,10 @@ function Grouper:BuildSmartOrganizePlan(context)
         score = chosen.netScore,
         rawScore = chosen.rawScore,
         moveCount = chosen.moves,
+        simulation = context.simulation == true,
+        scenarioName = context.scenarioName,
+        rosterSize = context.rosterSize or #(context.players or {}),
+        configuredSize = context.configuredSize,
     }
     plan.moves = self:BuildOrganizerMoves(chosen.layout, groups)
     plan.warnings = self:BuildOrganizerWarnings(groups)
@@ -4011,6 +4247,10 @@ function Grouper:ApplySmartOrganizePlan(plan)
         PrintGrouper("No Smart Organize preview is ready yet.", "|cffff9900")
         return
     end
+    if plan.simulation then
+        PrintGrouper("Smart Organize planning previews cannot be applied to the live raid.", "|cffff9900")
+        return
+    end
     if #plan.moves == 0 then
         PrintGrouper("Raid groups already match the Smart Organize plan.")
         return
@@ -4025,7 +4265,13 @@ end
 
 function Grouper:BuildSmartOrganizePreviewLines(plan)
     local lines = {}
-    lines[#lines + 1] = { text = "Smart Organize Preview", kind = "header" }
+    lines[#lines + 1] = { text = plan.simulation and "Smart Organize Planning Mode" or "Smart Organize Preview", kind = "header" }
+    if plan.simulation then
+        lines[#lines + 1] = {
+            text = string.format("Simulated raid: %d/%d - %s", plan.rosterSize or 0, plan.configuredSize or 0, plan.scenarioName or "sample raid"),
+            kind = "normal",
+        }
+    end
     lines[#lines + 1] = { text = string.format("Score: %d (%d raw), Moves: %d", plan.score or 0, plan.rawScore or 0, #plan.moves), kind = "normal" }
     lines[#lines + 1] = { text = " " }
 
@@ -4113,6 +4359,180 @@ function Grouper:SetSmartOrganizeFrameLines(lines)
     frame.ScrollChild:SetHeight(math.max(1, #(lines or {}) * rowHeight))
 end
 
+local GROUP_BOARD_LABELS = {
+    threat = "Threat",
+    physical = "Physical",
+    caster = "Caster",
+    mana = "Mana",
+    healer = "Heals",
+    support = "Support",
+    mixed = "Mixed",
+    overflow = "Overflow",
+}
+
+local function SetTextureColor(texture, r, g, b, a)
+    if not texture then return end
+    if texture.SetColorTexture then
+        texture:SetColorTexture(r, g, b, a)
+    else
+        texture:SetTexture(r, g, b, a)
+    end
+end
+
+local function OrganizerRoleCode(unit)
+    if IsOrganizerTank(unit) then return "T" end
+    if IsOrganizerHealer(unit) then return "H" end
+    if IsOrganizerDamager(unit) then return "D" end
+    return "-"
+end
+
+local function OrganizerUnitBoardDetail(unit)
+    if not unit then return "" end
+    local detail = unit.spec and SpecLabel(unit.spec) or RoleLabel(unit.role)
+    return OrganizerRoleCode(unit) .. " " .. detail
+end
+
+local function CreateSmartOrganizeBoardGroup(parent)
+    local groupFrame = CreateFrame("Frame", nil, parent)
+    groupFrame.Header = groupFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    groupFrame.Header:SetPoint("TOPLEFT", 0, 0)
+    groupFrame.Header:SetJustifyH("LEFT")
+    groupFrame.Rows = {}
+
+    for slot = 1, RAID_GROUP_SIZE do
+        local row = CreateFrame("Frame", nil, groupFrame)
+        row:SetHeight(17)
+        row.Bg = row:CreateTexture(nil, "BACKGROUND")
+        row.Bg:SetAllPoints()
+        SetTextureColor(row.Bg, 0.03, 0.03, 0.03, 0.82)
+        row.Fill = row:CreateTexture(nil, "ARTWORK")
+        row.Fill:SetPoint("TOPLEFT", 1, -1)
+        row.Fill:SetPoint("BOTTOMRIGHT", -1, 1)
+        row.Name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.Name:SetPoint("LEFT", 4, 0)
+        row.Name:SetJustifyH("LEFT")
+        row.Detail = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        row.Detail:SetPoint("RIGHT", -4, 0)
+        row.Detail:SetJustifyH("RIGHT")
+        groupFrame.Rows[slot] = row
+    end
+
+    return groupFrame
+end
+
+function Grouper:UpdateSmartOrganizeRaidBoard(plan)
+    local frame = smartOrganizeFrame
+    if not frame or not frame.RaidBoard then return 0 end
+
+    local board = frame.RaidBoard
+    local layout = plan and plan.layout or {}
+    local groupCount = math.max(1, #layout)
+    local columns = groupCount > 5 and 4 or groupCount
+    local gap = 8
+    local boardWidth = 646
+    local groupWidth = math.floor((boardWidth - ((columns - 1) * gap)) / columns)
+    local groupHeight = 112
+    local rows = math.ceil(groupCount / columns)
+    local boardHeight = (rows * groupHeight) + ((rows - 1) * gap)
+
+    board:SetHeight(boardHeight)
+
+    for groupIndex = 1, groupCount do
+        local groupFrame = board.Groups[groupIndex]
+        if not groupFrame then
+            groupFrame = CreateSmartOrganizeBoardGroup(board)
+            board.Groups[groupIndex] = groupFrame
+        end
+
+        local column = (groupIndex - 1) % columns
+        local rowIndex = math.floor((groupIndex - 1) / columns)
+        groupFrame:ClearAllPoints()
+        groupFrame:SetPoint("TOPLEFT", board, "TOPLEFT", column * (groupWidth + gap), -(rowIndex * (groupHeight + gap)))
+        groupFrame:SetSize(groupWidth, groupHeight)
+
+        local info = GetOrganizerGroupInfo(groupIndex, groupCount)
+        local label = GROUP_BOARD_LABELS[info.key] or info.label or "Group"
+        groupFrame.Header:SetWidth(groupWidth)
+        groupFrame.Header:SetText(string.format("G%d %s", groupIndex, label))
+
+        local group = layout[groupIndex] or {}
+        for slot = 1, RAID_GROUP_SIZE do
+            local unit = group[slot]
+            local row = groupFrame.Rows[slot]
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", groupFrame, "TOPLEFT", 0, -(18 + ((slot - 1) * 18)))
+            row:SetWidth(groupWidth)
+            row.Name:SetWidth(math.floor(groupWidth * 0.46))
+            row.Detail:SetWidth(math.floor(groupWidth * 0.48))
+
+            if unit then
+                local color = ClassColor(unit.class)
+                SetTextureColor(row.Fill, color[1], color[2], color[3], 0.72)
+                row.Fill:Show()
+                row.Name:SetText(ShortText(unit.name, groupWidth <= 125 and 8 or 11))
+                row.Name:SetTextColor(1, 1, 1)
+                row.Detail:SetText(ShortText(OrganizerUnitBoardDetail(unit), groupWidth <= 125 and 10 or 14))
+                row.Detail:SetTextColor(1, 1, 1)
+            else
+                row.Fill:Hide()
+                row.Name:SetText("Open")
+                row.Name:SetTextColor(0.48, 0.48, 0.48)
+                row.Detail:SetText("")
+            end
+            row:Show()
+        end
+
+        groupFrame:Show()
+    end
+
+    for groupIndex = groupCount + 1, #(board.Groups or {}) do
+        board.Groups[groupIndex]:Hide()
+    end
+
+    return boardHeight
+end
+
+function Grouper:ConfigureSmartOrganizeFrame(plan)
+    local frame = smartOrganizeFrame
+    if not frame then return end
+
+    frame.Scroll:ClearAllPoints()
+    frame.ApplyButton:ClearAllPoints()
+    frame.GuessButton:ClearAllPoints()
+    frame.SpecsButton:ClearAllPoints()
+    frame.CloseButton:ClearAllPoints()
+
+    frame.ApplyButton:SetPoint("BOTTOMRIGHT", -18, 18)
+    frame.GuessButton:SetPoint("RIGHT", frame.ApplyButton, "LEFT", -8, 0)
+
+    if plan and plan.simulation then
+        frame.Title:SetText("Grouper Smart Organize Planning")
+        frame.RaidBoard:Show()
+        local boardHeight = self:UpdateSmartOrganizeRaidBoard(plan)
+        frame.Scroll:SetPoint("TOPLEFT", 18, -(44 + boardHeight + 10))
+        frame.Scroll:SetPoint("BOTTOMRIGHT", -36, 58)
+        frame.ApplyButton:Disable()
+        frame.GuessButton:SetText("New Sim")
+        frame.GuessButton:SetScript("OnClick", function()
+            Grouper:ShowSmartOrganizePlanningPreview()
+        end)
+        frame.SpecsButton:Hide()
+        frame.CloseButton:SetPoint("RIGHT", frame.GuessButton, "LEFT", -8, 0)
+    else
+        frame.Title:SetText("Grouper Smart Organize")
+        frame.RaidBoard:Hide()
+        frame.Scroll:SetPoint("TOPLEFT", 18, -36)
+        frame.Scroll:SetPoint("BOTTOMRIGHT", -36, 58)
+        frame.GuessButton:SetText("Guess")
+        frame.GuessButton:SetScript("OnClick", function()
+            Grouper:ShowSmartOrganizePreview({ guess = true })
+        end)
+        frame.SpecsButton:Show()
+        frame.SpecsButton:SetPoint("RIGHT", frame.GuessButton, "LEFT", -8, 0)
+        frame.CloseButton:SetPoint("RIGHT", frame.SpecsButton, "LEFT", -8, 0)
+    end
+end
+
 function Grouper:EnsureSmartOrganizeFrame()
     if smartOrganizeFrame then
         return smartOrganizeFrame
@@ -4132,6 +4552,12 @@ function Grouper:EnsureSmartOrganizeFrame()
     frame.Title = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
     frame.Title:SetPoint("TOP", 0, -8)
     frame.Title:SetText("Grouper Smart Organize")
+
+    frame.RaidBoard = CreateFrame("Frame", nil, frame)
+    frame.RaidBoard:SetPoint("TOPLEFT", 18, -36)
+    frame.RaidBoard:SetPoint("TOPRIGHT", -36, -36)
+    frame.RaidBoard.Groups = {}
+    frame.RaidBoard:Hide()
 
     frame.Scroll = CreateFrame("ScrollFrame", "GrouperSmartOrganizeScrollFrame", frame, "UIPanelScrollFrameTemplate")
     frame.Scroll:SetPoint("TOPLEFT", 18, -36)
@@ -4395,10 +4821,25 @@ function Grouper:ShowOrganizerGuessPrompt(uncertain)
     end
 end
 
+function Grouper:ShowSmartOrganizePlanningPreview(options)
+    local context = self:BuildNextOrganizerPlanningContext(options)
+    local plan = self:BuildSmartOrganizePlan(context)
+    self.pendingSmartOrganizePlan = nil
+    self.pendingSmartOrganizeSimulationPlan = plan
+
+    local frame = self:EnsureSmartOrganizeFrame()
+    self:ConfigureSmartOrganizeFrame(plan)
+    self:SetSmartOrganizeFrameLines(self:BuildSmartOrganizePreviewLines(plan))
+    frame.ApplyButton:Disable()
+    frame:Show()
+
+    PrintGrouper(string.format("Smart Organize planning mode: showing %d/%d simulated raid members.", plan.rosterSize or 0, plan.configuredSize or 0))
+end
+
 function Grouper:ShowSmartOrganizePreview(options)
     options = options or {}
     if not (IsInRaid and IsInRaid()) and not _G.GROUPER_TEST_MODE then
-        PrintGrouper("Smart Organize is designed for raid groups. Convert to raid first.", "|cffff9900")
+        self:ShowSmartOrganizePlanningPreview(options)
         return
     end
 
@@ -4422,6 +4863,7 @@ function Grouper:ShowSmartOrganizePreview(options)
     end
 
     local frame = self:EnsureSmartOrganizeFrame()
+    self:ConfigureSmartOrganizeFrame(plan)
     self:SetSmartOrganizeFrameLines(self:BuildSmartOrganizePreviewLines(plan))
     if #plan.moves > 0 then
         frame.ApplyButton:Enable()
@@ -4843,6 +5285,9 @@ Grouper._test = {
     end,
     BuildCurrentOrganizerLayout = function(context)
         return BuildCurrentOrganizerLayout(context)
+    end,
+    BuildOrganizerPlanningContext = function(options)
+        return Grouper:BuildOrganizerPlanningContext(options)
     end,
 }
 
