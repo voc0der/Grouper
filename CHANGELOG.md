@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.48] - 2026-05-26
+
 ### Added
 - Smart Organize raid optimizer with role/spec prompts, guessed-spec fallback, scored party synergy, preview explanations, warnings, and leader/assistant-gated apply flow.
 - TBC party-placement scoring for threat, physical DPS, caster pump, shadow-priest mana, and healer/overflow raid groups.
@@ -116,7 +118,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.47...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.48...HEAD
+[1.0.48]: https://github.com/voc0der/Grouper/compare/v1.0.47...v1.0.48
 [1.0.47]: https://github.com/voc0der/Grouper/compare/v1.0.46...v1.0.47
 [1.0.46]: https://github.com/voc0der/Grouper/compare/v1.0.45...v1.0.46
 [1.0.45]: https://github.com/voc0der/Grouper/compare/v1.0.44...v1.0.45
