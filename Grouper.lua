@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.52"
+Grouper.version = "1.0.53"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -424,6 +424,38 @@ local ORGANIZER_PLANNING_SCENARIOS_25 = {
             { name = "Bloom", class = "DRUID", role = ROLE_HEALER, spec = "RESTORATION" },
             { name = "Flash", class = "PALADIN", role = ROLE_HEALER, spec = "HOLY" },
             { name = "Renew", class = "PRIEST", role = ROLE_HEALER, spec = "DISCIPLINE" },
+        },
+    },
+    {
+        name = "Full 25/25 shaman-heavy raid",
+        configuredSize = 25,
+        rosterSize = 25,
+        players = {
+            { name = "Granite", class = "WARRIOR", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Oakwall", class = "DRUID", role = ROLE_TANK, spec = "FERAL_TANK", mainTank = true },
+            { name = "Sunward", class = "PALADIN", role = ROLE_TANK, spec = "PROTECTION" },
+            { name = "Windlash", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ENHANCEMENT" },
+            { name = "Stormstrike", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ENHANCEMENT" },
+            { name = "Thunderhead", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ELEMENTAL" },
+            { name = "Chainwave", class = "SHAMAN", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Cleaver", class = "WARRIOR", role = ROLE_DAMAGER, spec = "WARRIOR_DPS" },
+            { name = "Sunder", class = "WARRIOR", role = ROLE_DAMAGER, spec = "WARRIOR_DPS" },
+            { name = "Shiv", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Vanish", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Prowl", class = "DRUID", role = ROLE_DAMAGER, spec = "FERAL" },
+            { name = "Zeal", class = "PALADIN", role = ROLE_DAMAGER, spec = "RETRIBUTION" },
+            { name = "Bullseye", class = "HUNTER", role = ROLE_DAMAGER, spec = "MARKSMANSHIP" },
+            { name = "Tracker", class = "HUNTER", role = ROLE_DAMAGER, spec = "SURVIVAL" },
+            { name = "Eclipse", class = "DRUID", role = ROLE_DAMAGER, spec = "BALANCE" },
+            { name = "Glacier", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Leyline", class = "MAGE", role = ROLE_DAMAGER, spec = "ARCANE" },
+            { name = "Ruin", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Emberhex", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Veilmind", class = "PRIEST", role = ROLE_DAMAGER, spec = "SHADOW" },
+            { name = "Serenity", class = "PRIEST", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Radiance", class = "PALADIN", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Wildbloom", class = "DRUID", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Aegispray", class = "PRIEST", role = ROLE_HEALER, spec = "DISCIPLINE" },
         },
     },
 }

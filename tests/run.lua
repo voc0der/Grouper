@@ -74,6 +74,16 @@ local function groupForPlayer(plan, playerName)
     return nil
 end
 
+local function countMatching(players, predicate)
+    local count = 0
+    for _, unit in ipairs(players or {}) do
+        if predicate(unit) then
+            count = count + 1
+        end
+    end
+    return count
+end
+
 test("caster pump groups elemental, boomkin, and three casters", function()
     local players = {
         unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
@@ -187,6 +197,20 @@ test("planning mode puts prot paladin threat with caster support", function()
     assertEquals(groupForPlayer(plan, "Blade"), 1, "rogue should get Windfury in threat group")
     assertEquals(groupForPlayer(plan, "Totem"), 1, "enhancement shaman should support threat melee")
     assertEquals(groupForPlayer(plan, "Aura"), 1, "ret paladin should stay with the threat group")
+end)
+
+test("planning mode includes a shaman-heavy 25-player simulation", function()
+    local planningContext = T.BuildOrganizerPlanningContext({ configuredSize = 25, sequence = 4 })
+    local shamans = countMatching(planningContext.players, function(unit)
+        return unit.class == "SHAMAN"
+    end)
+    local enhancement = countMatching(planningContext.players, function(unit)
+        return unit.class == "SHAMAN" and unit.spec == "ENHANCEMENT"
+    end)
+
+    assertEquals(planningContext.rosterSize, 25, "shaman-heavy planning scenario should be a full raid")
+    assertTrue(shamans >= 4, "planning mode should offer a scenario with at least four shamans")
+    assertTrue(enhancement >= 2, "planning mode should offer a scenario with multiple enhancement shamans")
 end)
 
 local failures = 0

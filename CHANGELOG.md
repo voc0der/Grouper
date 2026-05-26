@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.53] - 2026-05-26
+
+### Changed
+- Added a shaman-heavy Smart Organize planning simulation so New Sim can show four Shamans, including two Enhancement Shamans.
+
 ## [1.0.52] - 2026-05-26
 
 ### Changed
@@ -142,7 +147,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.52...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.53...HEAD
+[1.0.53]: https://github.com/voc0der/Grouper/compare/v1.0.52...v1.0.53
 [1.0.52]: https://github.com/voc0der/Grouper/compare/v1.0.51...v1.0.52
 [1.0.51]: https://github.com/voc0der/Grouper/compare/v1.0.50...v1.0.51
 [1.0.50]: https://github.com/voc0der/Grouper/compare/v1.0.49...v1.0.50
