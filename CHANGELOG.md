@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.57] - 2026-05-26
+
+### Changed
+- Smart Advertiser now keeps broad fill messages but adds caster or melee DPS priority when the partial raid composition is clearly lopsided.
+
 ## [1.0.56] - 2026-05-26
 
 ### Changed

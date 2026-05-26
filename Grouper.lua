@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.56"
+Grouper.version = "1.0.57"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -729,7 +729,7 @@ local function SmartAdvertiserFirstSpecNeed(needs, role, bucket)
     return nil
 end
 
-local function SmartAdvertiserDpsBucketNeed(needs)
+local function SmartAdvertiserDpsBucketInfo(needs)
     local stats = needs and needs.stats or {}
     local desiredDps = math.max(0, (needs.raidSize or 0) - (needs.desiredTanks or 0) - (needs.desiredHealers or 0))
     local desiredCasterDps = math.ceil(desiredDps / 2)
@@ -738,12 +738,29 @@ local function SmartAdvertiserDpsBucketNeed(needs)
     local physicalDeficit = desiredPhysicalDps - (stats.physicalDps or 0)
 
     if physicalDeficit > casterDeficit and physicalDeficit > 0 then
-        return "melee dps", "physical"
+        return "melee dps", "physical", physicalDeficit, physicalDeficit - casterDeficit
     end
     if casterDeficit > physicalDeficit and casterDeficit > 0 then
-        return "caster dps", "caster"
+        return "caster dps", "caster", casterDeficit, casterDeficit - physicalDeficit
     end
-    return "DPS", nil
+    return "DPS", nil, 0, 0
+end
+
+local function SmartAdvertiserDpsBucketNeed(needs)
+    local label, bucket = SmartAdvertiserDpsBucketInfo(needs)
+    return label, bucket
+end
+
+local function SmartAdvertiserDpsPriorityText(needs)
+    if not needs or (needs.dpsNeeded or 0) <= 0 or (needs.rosterSize or 0) < 10 then
+        return nil
+    end
+
+    local label, _, deficit, gap = SmartAdvertiserDpsBucketInfo(needs)
+    if label ~= "DPS" and deficit >= 2 and gap >= 2 then
+        return label .. " prio"
+    end
+    return nil
 end
 
 local function SmartAdvertiserSpecificDpsNeed(needs)
@@ -789,6 +806,20 @@ local function SmartAdvertiserBroadRoleNeedText(needs)
     return SmartAdvertiserJoinNeeds(parts)
 end
 
+local function SmartAdvertiserMixedRoleNeedText(needs)
+    local parts = {}
+    if (needs.tanksNeeded or 0) > 0 then
+        parts[#parts + 1] = (needs.tanksNeeded or 0) > 1 and "tanks" or "tank"
+    end
+    if (needs.healersNeeded or 0) > 0 then
+        parts[#parts + 1] = "heals"
+    end
+    if (needs.dpsNeeded or 0) > 0 then
+        parts[#parts + 1] = "DPS"
+    end
+    return SmartAdvertiserJoinNeeds(parts)
+end
+
 local function SmartAdvertiserNeedText(needs)
     if not needs or (needs.openSlots or 0) <= 0 then
         return nil
@@ -801,6 +832,13 @@ local function SmartAdvertiserNeedText(needs)
     local roleBucketCount = SmartAdvertiserRoleBucketCount(needs)
     if (needs.openSlots or 0) > 6 then
         if roleBucketCount > 1 then
+            local dpsPriority = SmartAdvertiserDpsPriorityText(needs)
+            if dpsPriority then
+                return "all, " .. dpsPriority
+            end
+            if (needs.openSlots or 0) <= 8 then
+                return SmartAdvertiserMixedRoleNeedText(needs)
+            end
             return "all"
         end
         return SmartAdvertiserBroadRoleNeedText(needs)
