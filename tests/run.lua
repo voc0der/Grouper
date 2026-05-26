@@ -335,6 +335,35 @@ test("smart advertiser keeps broad role asks readable near full", function()
     assertTrue(#msg20 <= 255, "late fill message should stay concise")
 end)
 
+test("smart advertiser flags caster priority when melee is frontloaded", function()
+    local context9 = T.BuildOrganizerPlanningContext({
+        configuredSize = 25,
+        sequence = 2,
+        rosterSize = 9,
+    })
+    local msg9 = T.GenerateSmartAdvertiserMessageForContext("Magtheridon's Lair", { size = 25, tanks = 3, healers = 6 }, context9)
+
+    assertEquals(msg9, "LFM Mag 9/25 - need all", "early ads should stay simple before the roster signal is strong")
+
+    local context12 = T.BuildOrganizerPlanningContext({
+        configuredSize = 25,
+        sequence = 2,
+        rosterSize = 12,
+    })
+    local msg12 = T.GenerateSmartAdvertiserMessageForContext("Magtheridon's Lair", { size = 25, tanks = 3, healers = 6 }, context12)
+
+    assertEquals(msg12, "LFM Mag 12/25 - need all, caster dps prio", "melee-heavy partial raids should advertise caster DPS preference")
+
+    local context18 = T.BuildOrganizerPlanningContext({
+        configuredSize = 25,
+        sequence = 2,
+        rosterSize = 18,
+    })
+    local msg18 = T.GenerateSmartAdvertiserMessageForContext("Magtheridon's Lair", { size = 25, tanks = 3, healers = 6 }, context18)
+
+    assertEquals(msg18, "LFM Mag 18/25 - need heals + DPS", "late-mid ads should name broad roles instead of falling back to need all")
+end)
+
 test("smart advertiser gets specific only when the slot is specific", function()
     local tankPlayers = {
         unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
@@ -410,6 +439,7 @@ test("fill simulation logs ads and finishes with a scored comp", function()
     assertEquals(plan.rosterSize, 25, "final fill sim plan should contain the full raid")
     assertTrue(plan.score ~= nil, "final fill sim plan should have a Smart Organize score")
     assertTrue(logIncludes(plan.fillLog, "Join:"), "fill sim should log joins")
+    assertTrue(logIncludes(plan.fillLog, "caster dps prio"), "fill sim should show caster priority when the sample fill is melee-heavy")
     assertTrue(logIncludes(plan.fillLog, "Final score"), "fill sim should log the final score")
 end)
 
