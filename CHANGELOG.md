@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.49] - 2026-05-26
+
+### Fixed
+- Cleaned up the main configuration UI layout so interval controls, version checking, and bottom action buttons no longer overlap.
+
 ## [1.0.48] - 2026-05-26
 
 ### Added
@@ -118,7 +123,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.48...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.49...HEAD
+[1.0.49]: https://github.com/voc0der/Grouper/compare/v1.0.48...v1.0.49
 [1.0.48]: https://github.com/voc0der/Grouper/compare/v1.0.47...v1.0.48
 [1.0.47]: https://github.com/voc0der/Grouper/compare/v1.0.46...v1.0.47
 [1.0.46]: https://github.com/voc0der/Grouper/compare/v1.0.45...v1.0.46
