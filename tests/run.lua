@@ -81,6 +81,15 @@ local function listIncludesAny(list, values)
     return false
 end
 
+local function logIncludes(log, text)
+    for _, entry in ipairs(log or {}) do
+        if string.find(entry.text or "", text, 1, true) then
+            return true
+        end
+    end
+    return false
+end
+
 local function groupForPlayer(plan, playerName)
     for groupIndex, group in ipairs(plan.layout or {}) do
         for _, unit in ipairs(group) do
@@ -282,6 +291,45 @@ test("smart advertiser uses organizer scoring for balanced DPS suggestions", fun
         listIncludesAny(needs.specNeeds, { "Ele Shaman", "Boomkin", "Shadow Priest", "Warlock", "Mage", "Arcane Mage" }),
         "physical-heavy rosters should get caster-side smart suggestions"
     )
+end)
+
+test("fill simulation logs ads and finishes with a scored comp", function()
+    local state = T.BuildSmartAdvertiserFillState({
+        bossName = "Serpentshrine Cavern",
+        configuredSize = 25,
+        sequence = 2,
+        speed = 8,
+        startSize = 4,
+    })
+
+    assertEquals(state.speed, 8, "requested fill sim speed should be kept")
+    assertEquals(state.currentSize, 4, "fill sim should start at the requested partial roster size")
+    assertEquals(state.targetSize, 25, "fill sim should target a full 25-player raid")
+    assertTrue(logIncludes(state.log, "LFM Serpentshrine Cavern"), "initial fill sim log should include an ad")
+
+    local guard = 0
+    while not state.complete and guard < 30 do
+        T.AdvanceSmartAdvertiserFillState(state)
+        guard = guard + 1
+    end
+
+    local plan = T.BuildSmartAdvertiserFillPlan(state)
+    assertTrue(state.complete, "fill sim should complete")
+    assertEquals(plan.rosterSize, 25, "final fill sim plan should contain the full raid")
+    assertTrue(plan.score ~= nil, "final fill sim plan should have a Smart Organize score")
+    assertTrue(logIncludes(plan.fillLog, "Join:"), "fill sim should log joins")
+    assertTrue(logIncludes(plan.fillLog, "Final score"), "fill sim should log the final score")
+end)
+
+test("fill simulation normalizes speed to 2x 4x or 8x", function()
+    local slow = T.BuildSmartAdvertiserFillState({ bossName = "Serpentshrine Cavern", configuredSize = 25, speed = 1 })
+    local medium = T.BuildSmartAdvertiserFillState({ bossName = "Serpentshrine Cavern", configuredSize = 25, speed = 5 })
+    local fast = T.BuildSmartAdvertiserFillState({ bossName = "Serpentshrine Cavern", configuredSize = 25, speed = 99 })
+
+    assertEquals(slow.speed, 2, "low speed values should normalize to 2x")
+    assertEquals(medium.speed, 4, "middle speed values should normalize to 4x")
+    assertEquals(fast.speed, 8, "high speed values should normalize to 8x")
+    assertTrue(fast.delay < medium.delay and medium.delay < slow.delay, "faster fill speeds should use shorter delays")
 end)
 
 local failures = 0

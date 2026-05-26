@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.54"
+Grouper.version = "1.0.55"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -243,6 +243,12 @@ local SMART_ADVERTISER_MODE_LABELS = {
     [SMART_ADVERTISER_MODE_ASK] = "On (ask)",
     [SMART_ADVERTISER_MODE_OFF] = "Off",
     [SMART_ADVERTISER_MODE_GUESS] = "On (guess all specs)",
+}
+
+local SMART_ADVERTISER_FILL_SPEEDS = {
+    [2] = 0.80,
+    [4] = 0.40,
+    [8] = 0.20,
 }
 
 local ORGANIZER_GROUPS = {
@@ -605,6 +611,13 @@ end
 
 local function SmartAdvertiserModeLabel(mode)
     return SMART_ADVERTISER_MODE_LABELS[NormalizeSmartAdvertiserMode(mode)]
+end
+
+local function NormalizeSmartAdvertiserFillSpeed(speed)
+    speed = SafeNumber(speed, 4)
+    if speed >= 8 then return 8 end
+    if speed >= 4 then return 4 end
+    return 2
 end
 
 local function IsRaidBossConfig(config)
@@ -1224,6 +1237,25 @@ end
 function Grouper:GetBossConfig(bossName)
     if not bossName or bossName == "" then
         return nil
+    end
+
+    if not GrouperDB then
+        GrouperDB = {}
+    end
+    if type(GrouperDB.bosses) ~= "table" then
+        GrouperDB.bosses = {}
+    end
+
+    local defaultConfig = defaults.bosses and defaults.bosses[bossName]
+    if defaultConfig and not GrouperDB.bosses[bossName] then
+        GrouperDB.bosses[bossName] = {
+            tanks = defaultConfig.tanks,
+            healers = defaultConfig.healers,
+            hr = defaultConfig.hr,
+            custom = defaultConfig.custom,
+            size = defaultConfig.size,
+            category = defaultConfig.category,
+        }
     end
 
     -- Try exact match first
@@ -2085,6 +2117,22 @@ local function GetOrganizerPlanningScenarios(configuredSize)
     return ORGANIZER_PLANNING_SCENARIOS_25
 end
 
+local function GetOrganizerFillScenario(configuredSize, sequence)
+    local scenarios = GetOrganizerPlanningScenarios(configuredSize)
+    local candidates = {}
+    local targetSize = Clamp(configuredSize or 25, RAID_GROUP_SIZE, 40)
+    for _, scenario in ipairs(scenarios) do
+        if #(scenario.players or {}) >= targetSize then
+            candidates[#candidates + 1] = scenario
+        end
+    end
+    if #candidates == 0 then
+        candidates = scenarios
+    end
+    sequence = math.max(1, SafeNumber(sequence, 1))
+    return candidates[((sequence - 1) % #candidates) + 1]
+end
+
 local function GetOrganizerPlanningSubgroup(playerIndex, sequence, groupCount)
     if not groupCount or groupCount <= 1 then
         return 1
@@ -2099,11 +2147,12 @@ function Grouper:BuildOrganizerPlanningContext(options)
 
     local scenarios = GetOrganizerPlanningScenarios(configuredSize)
     local sequence = math.max(1, SafeNumber(options.sequence, 1))
-    local scenario = scenarios[((sequence - 1) % #scenarios) + 1]
-    local rosterSize = math.min(scenario.rosterSize or #scenario.players, #scenario.players)
+    local scenario = options.scenario or scenarios[((sequence - 1) % #scenarios) + 1]
+    local rosterSize = math.min(math.floor(SafeNumber(options.rosterSize or scenario.rosterSize or #scenario.players, #scenario.players) + 0.5), #scenario.players)
     if configuredSize <= 20 then
         rosterSize = math.min(rosterSize, configuredSize)
     end
+    rosterSize = Clamp(rosterSize, 1, #scenario.players)
 
     local desiredSize = math.max(rosterSize, configuredSize)
     local groupCount = math.ceil(desiredSize / RAID_GROUP_SIZE)
@@ -3351,10 +3400,11 @@ function Grouper:FormatSmartAdvertiserNeeds(needs)
     return table.concat(parts, " / ")
 end
 
-function Grouper:GenerateSmartAdvertiserMessage(bossName, config)
-    local mode = self:GetSmartAdvertiserMode()
-    local context = self:BuildOrganizerContext({ guess = mode == SMART_ADVERTISER_MODE_GUESS })
-    local raidSize = config.size or GrouperDB.raidSize or defaults.raidSize
+function Grouper:GenerateSmartAdvertiserMessageForContext(bossName, config, context, options)
+    options = options or {}
+    config = config or {}
+    context = context or { players = {}, configuredSize = config.size or defaults.raidSize }
+    local raidSize = config.size or context.configuredSize or (GrouperDB and GrouperDB.raidSize) or defaults.raidSize
     local numRaid = #(context.players or {})
     local raidPercent = numRaid / raidSize
 
@@ -3370,7 +3420,10 @@ function Grouper:GenerateSmartAdvertiserMessage(bossName, config)
         msg = msg .. " - Need " .. needsText
     end
 
-    local hrItem = activeSession.hr or config.hr
+    local hrItem = options.hrItem
+    if hrItem == nil then
+        hrItem = config.hr
+    end
     if hrItem then
         msg = msg .. " - " .. hrItem .. " HR"
     end
@@ -3381,6 +3434,145 @@ function Grouper:GenerateSmartAdvertiserMessage(bossName, config)
     end
 
     return msg, numRaid, raidSize
+end
+
+function Grouper:GenerateSmartAdvertiserMessage(bossName, config)
+    local mode = self:GetSmartAdvertiserMode()
+    local context = self:BuildOrganizerContext({ guess = mode == SMART_ADVERTISER_MODE_GUESS })
+    return self:GenerateSmartAdvertiserMessageForContext(bossName, config, context, { hrItem = activeSession.hr })
+end
+
+function Grouper:GetSmartAdvertiserSimulationBoss(configuredSize)
+    local bossName = activeSession.active and activeSession.boss or (configFrame and configFrame.selectedBoss) or nil
+    local config = bossName and self:GetBossConfig(bossName) or nil
+    if bossName and config and IsRaidBossConfig(config) then
+        return bossName, config
+    end
+
+    local preferred = (configuredSize or 25) <= 10 and "Karazhan" or "Serpentshrine Cavern"
+    if defaults.bosses[preferred] then
+        return preferred, self:GetBossConfig(preferred)
+    end
+
+    for name, defaultConfig in pairs(defaults.bosses) do
+        if IsRaidBossConfig(defaultConfig) then
+            return name, self:GetBossConfig(name)
+        end
+    end
+
+    return bossName or "Simulated Raid", config or { tanks = 3, healers = 7, size = configuredSize or 25, category = "25-Man Raid" }
+end
+
+function Grouper:AppendSmartAdvertiserFillLog(state, text, kind)
+    if not state then return end
+    state.log = state.log or {}
+    state.log[#state.log + 1] = { text = text, kind = kind or "normal" }
+    while #state.log > 80 do
+        table.remove(state.log, 1)
+    end
+end
+
+function Grouper:BuildSmartAdvertiserFillState(options)
+    options = options or {}
+    local configuredSize = math.floor(SafeNumber(options.configuredSize or self:GetConfiguredOrganizerSize(), 25) + 0.5)
+    configuredSize = Clamp(configuredSize, RAID_GROUP_SIZE, 40)
+    local sequence = math.max(1, SafeNumber(options.sequence or (self.smartAdvertiserFillCounter or 0) + 1, 1))
+    local bossName, config = self:GetSmartAdvertiserSimulationBoss(configuredSize)
+    if options.bossName then
+        bossName = options.bossName
+        config = self:GetBossConfig(bossName)
+    end
+    configuredSize = Clamp(config.size or configuredSize, RAID_GROUP_SIZE, 40)
+
+    local scenario = options.scenario or GetOrganizerFillScenario(configuredSize, sequence)
+    local targetSize = math.min(configuredSize, #(scenario.players or {}))
+    local startSize = options.startSize or math.max(3, math.floor(targetSize * 0.16))
+    startSize = Clamp(startSize, 1, targetSize)
+    local speed = NormalizeSmartAdvertiserFillSpeed(options.speed)
+
+    local state = {
+        bossName = bossName,
+        config = config,
+        configuredSize = configuredSize,
+        scenario = scenario,
+        sequence = sequence,
+        speed = speed,
+        delay = SMART_ADVERTISER_FILL_SPEEDS[speed] or SMART_ADVERTISER_FILL_SPEEDS[4],
+        currentSize = startSize,
+        targetSize = targetSize,
+        log = {},
+        complete = startSize >= targetSize,
+    }
+
+    local context = self:BuildOrganizerPlanningContext({
+        configuredSize = configuredSize,
+        sequence = sequence,
+        scenario = scenario,
+        rosterSize = startSize,
+    })
+    local msg = self:GenerateSmartAdvertiserMessageForContext(bossName, config, context)
+    self:AppendSmartAdvertiserFillLog(state, string.format("Ad at %d/%d: %s", startSize, targetSize, msg), "message")
+    if state.complete then
+        self:AppendSmartAdvertiserFillLog(state, "Raid is full. Final Smart Organize comp is shown below.", "good")
+    end
+
+    return state
+end
+
+function Grouper:BuildSmartAdvertiserFillPlan(state)
+    if not state then
+        state = self:BuildSmartAdvertiserFillState()
+    end
+
+    local context = self:BuildOrganizerPlanningContext({
+        configuredSize = state.configuredSize,
+        sequence = state.sequence,
+        scenario = state.scenario,
+        rosterSize = state.currentSize,
+    })
+    context.scenarioName = string.format("%s fill sim at %dx", state.scenario.name or "sample raid", state.speed or 4)
+    local plan = self:BuildSmartOrganizePlan(context)
+    plan.fillLog = state.log
+    plan.fillSpeed = state.speed
+    plan.fillComplete = state.complete == true
+    plan.fillBossName = state.bossName
+    plan.rosterSize = state.currentSize
+    plan.configuredSize = state.targetSize
+    return plan
+end
+
+function Grouper:AdvanceSmartAdvertiserFillState(state)
+    if not state or state.complete then
+        return state
+    end
+
+    local nextIndex = state.currentSize + 1
+    local entry = state.scenario.players[nextIndex]
+    if entry then
+        state.currentSize = nextIndex
+        self:AppendSmartAdvertiserFillLog(state, string.format("Join: %s (%s %s)", entry.name or "Unknown", ClassLabel(entry.class), SpecLabel(entry.spec)), "join")
+    else
+        state.complete = true
+        return state
+    end
+
+    local context = self:BuildOrganizerPlanningContext({
+        configuredSize = state.configuredSize,
+        sequence = state.sequence,
+        scenario = state.scenario,
+        rosterSize = state.currentSize,
+    })
+
+    if state.currentSize >= state.targetSize then
+        state.complete = true
+        local finalPlan = self:BuildSmartOrganizePlan(context)
+        self:AppendSmartAdvertiserFillLog(state, string.format("Full at %d/%d. Final score: %d (%d raw), moves: %d.", state.currentSize, state.targetSize, finalPlan.score or 0, finalPlan.rawScore or 0, #(finalPlan.moves or {})), "good")
+    else
+        local msg = self:GenerateSmartAdvertiserMessageForContext(state.bossName, state.config, context)
+        self:AppendSmartAdvertiserFillLog(state, string.format("Ad at %d/%d: %s", state.currentSize, state.targetSize, msg), "message")
+    end
+
+    return state
 end
 
 -- Generate recruitment message
@@ -4719,6 +4911,16 @@ function Grouper:BuildSmartOrganizePreviewLines(plan)
             kind = "normal",
         }
     end
+    if plan.fillLog then
+        lines[#lines + 1] = {
+            text = string.format("Fill simulation: %s at %dx%s", plan.fillBossName or "raid", plan.fillSpeed or 4, plan.fillComplete and " complete" or ""),
+            kind = "header",
+        }
+        for _, entry in ipairs(plan.fillLog or {}) do
+            lines[#lines + 1] = { text = "  " .. (entry.text or ""), kind = entry.kind or "normal" }
+        end
+        lines[#lines + 1] = { text = " " }
+    end
     lines[#lines + 1] = { text = string.format("Score: %d (%d raw), Moves: %d", plan.score or 0, plan.rawScore or 0, #plan.moves), kind = "normal" }
     lines[#lines + 1] = { text = " " }
 
@@ -4793,6 +4995,10 @@ function Grouper:SetSmartOrganizeFrameLines(lines)
             row:SetTextColor(1.0, 0.9, 0.45)
         elseif line.kind == "move" then
             row:SetTextColor(0.65, 0.85, 1.0)
+        elseif line.kind == "message" then
+            row:SetTextColor(0.55, 0.86, 1.0)
+        elseif line.kind == "join" then
+            row:SetTextColor(0.72, 1.0, 0.72)
         else
             row:SetTextColor(1.0, 1.0, 1.0)
         end
@@ -4939,6 +5145,71 @@ function Grouper:UpdateSmartOrganizeRaidBoard(plan)
     return boardHeight
 end
 
+function Grouper:StopSmartAdvertiserFillSimulation()
+    self.smartAdvertiserFillRunId = (self.smartAdvertiserFillRunId or 0) + 1
+    self.smartAdvertiserFillState = nil
+end
+
+function Grouper:RenderSmartAdvertiserFillSimulation()
+    local state = self.smartAdvertiserFillState
+    if not state then return end
+
+    local plan = self:BuildSmartAdvertiserFillPlan(state)
+    self.pendingSmartOrganizePlan = nil
+    self.pendingSmartOrganizeSimulationPlan = plan
+
+    local frame = self:EnsureSmartOrganizeFrame()
+    self:ConfigureSmartOrganizeFrame(plan)
+    self:SetSmartOrganizeFrameLines(self:BuildSmartOrganizePreviewLines(plan))
+    frame:Show()
+end
+
+function Grouper:RunSmartAdvertiserFillSimulation(runId)
+    local state = self.smartAdvertiserFillState
+    if not state or runId ~= self.smartAdvertiserFillRunId then
+        return
+    end
+
+    self:AdvanceSmartAdvertiserFillState(state)
+    self:RenderSmartAdvertiserFillSimulation()
+
+    if state.complete then
+        return
+    end
+
+    if C_Timer and C_Timer.After then
+        C_Timer.After(state.delay or SMART_ADVERTISER_FILL_SPEEDS[4], function()
+            Grouper:RunSmartAdvertiserFillSimulation(runId)
+        end)
+    else
+        self:RunSmartAdvertiserFillSimulation(runId)
+    end
+end
+
+function Grouper:StartSmartAdvertiserFillSimulation(speed)
+    self.smartAdvertiserFillCounter = (self.smartAdvertiserFillCounter or 0) + 1
+    self.smartAdvertiserFillRunId = (self.smartAdvertiserFillRunId or 0) + 1
+    local state = self:BuildSmartAdvertiserFillState({
+        speed = speed,
+        sequence = self.smartAdvertiserFillCounter,
+    })
+    self.smartAdvertiserFillState = state
+    self:RenderSmartAdvertiserFillSimulation()
+
+    if state.complete then
+        return
+    end
+
+    local runId = self.smartAdvertiserFillRunId
+    if C_Timer and C_Timer.After then
+        C_Timer.After(state.delay or SMART_ADVERTISER_FILL_SPEEDS[4], function()
+            Grouper:RunSmartAdvertiserFillSimulation(runId)
+        end)
+    else
+        self:RunSmartAdvertiserFillSimulation(runId)
+    end
+end
+
 function Grouper:ConfigureSmartOrganizeFrame(plan)
     local frame = smartOrganizeFrame
     if not frame then return end
@@ -4947,10 +5218,8 @@ function Grouper:ConfigureSmartOrganizeFrame(plan)
     frame.ApplyButton:ClearAllPoints()
     frame.GuessButton:ClearAllPoints()
     frame.SpecsButton:ClearAllPoints()
+    frame.NewSimButton:ClearAllPoints()
     frame.CloseButton:ClearAllPoints()
-
-    frame.ApplyButton:SetPoint("BOTTOMRIGHT", -18, 18)
-    frame.GuessButton:SetPoint("RIGHT", frame.ApplyButton, "LEFT", -8, 0)
 
     if plan and plan.simulation then
         frame.Title:SetText("Grouper Smart Organize Planning")
@@ -4958,24 +5227,75 @@ function Grouper:ConfigureSmartOrganizeFrame(plan)
         local boardHeight = self:UpdateSmartOrganizeRaidBoard(plan)
         frame.Scroll:SetPoint("TOPLEFT", 18, -(44 + boardHeight + 10))
         frame.Scroll:SetPoint("BOTTOMRIGHT", -36, 58)
-        frame.ApplyButton:Disable()
-        frame.GuessButton:SetText("New Sim")
-        frame.GuessButton:SetScript("OnClick", function()
+
+        frame.CloseButton:SetSize(90, 24)
+        frame.CloseButton:SetPoint("BOTTOMRIGHT", -18, 18)
+
+        frame.NewSimButton:SetSize(90, 24)
+        frame.NewSimButton:SetPoint("RIGHT", frame.CloseButton, "LEFT", -8, 0)
+        frame.NewSimButton:SetText("New Sim")
+        frame.NewSimButton:SetScript("OnClick", function()
+            Grouper:StopSmartAdvertiserFillSimulation()
             Grouper:ShowSmartOrganizePlanningPreview()
         end)
-        frame.SpecsButton:Hide()
-        frame.CloseButton:SetPoint("RIGHT", frame.GuessButton, "LEFT", -8, 0)
+        frame.NewSimButton:Show()
+
+        frame.SpecsButton:SetSize(78, 24)
+        frame.SpecsButton:SetPoint("RIGHT", frame.NewSimButton, "LEFT", -8, 0)
+        frame.SpecsButton:SetText("Fill 8x")
+        frame.SpecsButton:SetScript("OnClick", function()
+            Grouper:StartSmartAdvertiserFillSimulation(8)
+        end)
+        frame.SpecsButton:Enable()
+        frame.SpecsButton:Show()
+
+        frame.GuessButton:SetSize(78, 24)
+        frame.GuessButton:SetPoint("RIGHT", frame.SpecsButton, "LEFT", -8, 0)
+        frame.GuessButton:SetText("Fill 4x")
+        frame.GuessButton:SetScript("OnClick", function()
+            Grouper:StartSmartAdvertiserFillSimulation(4)
+        end)
+        frame.GuessButton:Enable()
+
+        frame.ApplyButton:SetSize(78, 24)
+        frame.ApplyButton:SetPoint("RIGHT", frame.GuessButton, "LEFT", -8, 0)
+        frame.ApplyButton:SetText("Fill 2x")
+        frame.ApplyButton:SetScript("OnClick", function()
+            Grouper:StartSmartAdvertiserFillSimulation(2)
+        end)
+        frame.ApplyButton:Enable()
     else
         frame.Title:SetText("Grouper Smart Organize")
         frame.RaidBoard:Hide()
         frame.Scroll:SetPoint("TOPLEFT", 18, -36)
         frame.Scroll:SetPoint("BOTTOMRIGHT", -36, 58)
+        frame.NewSimButton:Hide()
+
+        frame.ApplyButton:SetSize(110, 24)
+        frame.ApplyButton:SetPoint("BOTTOMRIGHT", -18, 18)
+        frame.ApplyButton:SetText("Apply")
+        frame.ApplyButton:SetScript("OnClick", function()
+            Grouper:ApplySmartOrganizePlan(Grouper.pendingSmartOrganizePlan)
+        end)
+
+        frame.GuessButton:SetSize(110, 24)
+        frame.GuessButton:SetPoint("RIGHT", frame.ApplyButton, "LEFT", -8, 0)
         frame.GuessButton:SetText("Guess")
         frame.GuessButton:SetScript("OnClick", function()
             Grouper:ShowSmartOrganizePreview({ guess = true })
         end)
+        frame.GuessButton:Enable()
+
+        frame.SpecsButton:SetSize(110, 24)
         frame.SpecsButton:Show()
         frame.SpecsButton:SetPoint("RIGHT", frame.GuessButton, "LEFT", -8, 0)
+        frame.SpecsButton:SetText("Assign Specs")
+        frame.SpecsButton:SetScript("OnClick", function()
+            local context = Grouper:BuildOrganizerContext()
+            Grouper:ShowOrganizerSpecFrame(Grouper:GetUncertainOrganizerPlayers(context))
+        end)
+
+        frame.CloseButton:SetSize(110, 24)
         frame.CloseButton:SetPoint("RIGHT", frame.SpecsButton, "LEFT", -8, 0)
     end
 end
@@ -5042,11 +5362,23 @@ function Grouper:EnsureSmartOrganizeFrame()
     end)
     ApplyElvUISkin(frame.SpecsButton, "button")
 
+    frame.NewSimButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    frame.NewSimButton:SetSize(90, 24)
+    frame.NewSimButton:SetPoint("RIGHT", frame.SpecsButton, "LEFT", -8, 0)
+    frame.NewSimButton:SetText("New Sim")
+    frame.NewSimButton:SetScript("OnClick", function()
+        Grouper:StopSmartAdvertiserFillSimulation()
+        Grouper:ShowSmartOrganizePlanningPreview()
+    end)
+    frame.NewSimButton:Hide()
+    ApplyElvUISkin(frame.NewSimButton, "button")
+
     frame.CloseButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     frame.CloseButton:SetSize(110, 24)
     frame.CloseButton:SetPoint("RIGHT", frame.SpecsButton, "LEFT", -8, 0)
     frame.CloseButton:SetText("Close")
     frame.CloseButton:SetScript("OnClick", function()
+        Grouper:StopSmartAdvertiserFillSimulation()
         frame:Hide()
     end)
     ApplyElvUISkin(frame.CloseButton, "button")
@@ -5357,6 +5689,7 @@ function Grouper:ShowOrganizerGuessPrompt(uncertain)
 end
 
 function Grouper:ShowSmartOrganizePlanningPreview(options)
+    self:StopSmartAdvertiserFillSimulation()
     local context = self:BuildNextOrganizerPlanningContext(options)
     local plan = self:BuildSmartOrganizePlan(context)
     self.pendingSmartOrganizePlan = nil
@@ -5365,7 +5698,6 @@ function Grouper:ShowSmartOrganizePlanningPreview(options)
     local frame = self:EnsureSmartOrganizeFrame()
     self:ConfigureSmartOrganizeFrame(plan)
     self:SetSmartOrganizeFrameLines(self:BuildSmartOrganizePreviewLines(plan))
-    frame.ApplyButton:Disable()
     frame:Show()
 
     PrintGrouper(string.format("Smart Organize planning mode: showing %d/%d simulated raid members.", plan.rosterSize or 0, plan.configuredSize or 0))
@@ -5853,6 +6185,18 @@ Grouper._test = {
     end,
     ScoreSmartAdvertiserCandidate = function(context, candidate, config, baseRawScore)
         return Grouper:ScoreSmartAdvertiserCandidate(context, candidate, config, baseRawScore)
+    end,
+    BuildSmartAdvertiserFillState = function(options)
+        return Grouper:BuildSmartAdvertiserFillState(options)
+    end,
+    AdvanceSmartAdvertiserFillState = function(state)
+        return Grouper:AdvanceSmartAdvertiserFillState(state)
+    end,
+    BuildSmartAdvertiserFillPlan = function(state)
+        return Grouper:BuildSmartAdvertiserFillPlan(state)
+    end,
+    GenerateSmartAdvertiserMessageForContext = function(bossName, config, context, options)
+        return Grouper:GenerateSmartAdvertiserMessageForContext(bossName, config, context, options)
     end,
 }
 
