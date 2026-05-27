@@ -242,6 +242,29 @@ test("planning mode uses 10-player raid roles and group labels", function()
     assertEquals(plan.groups[2].label, "Caster / healer group", "group two should be labeled for casters/healers")
 end)
 
+test("10-player organizer splits prot paladin tank to caster support", function()
+    local players = {
+        unit("Arrow", "HUNTER", "DAMAGER", "MARKSMANSHIP", 1),
+        unit("Blade", "ROGUE", "DAMAGER", "ROGUE_DPS", 1),
+        unit("Oakhide", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Shield", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Totem", "SHAMAN", "DAMAGER", "ENHANCEMENT", 1),
+        unit("Bolt", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 2),
+        unit("Light", "PRIEST", "HEALER", "HOLY", 2),
+        unit("Moonbeam", "DRUID", "DAMAGER", "BALANCE", 2),
+        unit("Renewal", "SHAMAN", "HEALER", "RESTORATION", 2),
+        unit("Spark", "MAGE", "DAMAGER", "MAGE_CASTER", 2),
+    }
+
+    local plan = T.BuildSmartOrganizePlan({ players = players, groupCount = 2, configuredSize = 10 })
+
+    assertEquals(groupForPlayer(plan, "Oakhide"), 1, "warrior tank should anchor the melee group")
+    assertEquals(groupForPlayer(plan, "Totem"), 1, "enhancement shaman should stay with the physical group")
+    assertEquals(groupForPlayer(plan, "Light"), 1, "holy priest should cover the melee/tank group")
+    assertEquals(groupForPlayer(plan, "Shield"), 2, "prot paladin should support the caster/healer group")
+    assertEquals(groupForPlayer(plan, "Renewal"), 2, "resto shaman should stay with the caster/healer group")
+end)
+
 test("planning mode puts prot paladin threat with caster support", function()
     local planningContext = T.BuildOrganizerPlanningContext({ configuredSize = 25, sequence = 3 })
     local plan = T.BuildSmartOrganizePlan(planningContext)
