@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.65] - 2026-05-27
+
+### Changed
+- Smart Advertiser role asks now render as grouped `tank (...) / heals (...) / dps (... pref)` messages with unambiguous healer labels like `hpriest` and `rshaman`.
+- Smart Advertiser DPS utility preferences can now include missing Enhancement Shaman alongside Elemental Shaman and Shadow Priest late in 25-player fills.
+
 ## [1.0.64] - 2026-05-27
 
 ### Fixed
@@ -204,7 +210,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.64...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.65...HEAD
+[1.0.65]: https://github.com/voc0der/Grouper/compare/v1.0.64...v1.0.65
 [1.0.64]: https://github.com/voc0der/Grouper/compare/v1.0.63...v1.0.64
 [1.0.63]: https://github.com/voc0der/Grouper/compare/v1.0.62...v1.0.63
 [1.0.62]: https://github.com/voc0der/Grouper/compare/v1.0.61...v1.0.62
