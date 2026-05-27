@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.62"
+Grouper.version = "1.0.63"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -642,7 +642,7 @@ local SMART_ADVERTISER_SHORT_LABELS = {
     ["Resto Shaman"] = "rsham",
     ["Priest Healer"] = "priest",
     ["Holy Paladin"] = "hpal",
-    ["Resto Druid"] = "rdruid",
+    ["Resto Druid"] = "druid",
     ["Ele Shaman"] = "ele",
     ["Enh Shaman"] = "enh",
     ["Boomkin"] = "boomkin",
@@ -656,6 +656,19 @@ local SMART_ADVERTISER_SHORT_LABELS = {
     ["Rogue"] = "rogue",
     ["Ret Paladin"] = "ret",
     ["Feral DPS"] = "feral",
+}
+
+local SMART_ADVERTISER_TANK_DISPLAY_ORDER = {
+    ["Feral Tank"] = 1,
+    ["Prot Paladin"] = 2,
+    ["Prot Warrior"] = 3,
+}
+
+local SMART_ADVERTISER_HEALER_DISPLAY_ORDER = {
+    ["Resto Shaman"] = 1,
+    ["Priest Healer"] = 2,
+    ["Resto Druid"] = 3,
+    ["Holy Paladin"] = 4,
 }
 
 local function PrintGrouper(message, color)
@@ -832,14 +845,72 @@ local function SmartAdvertiserRoleBucketCount(needs)
     return count
 end
 
+local function SmartAdvertiserCandidateCount(needs, candidate)
+    if not needs or not candidate then
+        return 0
+    end
+    return (needs.candidateCounts and needs.candidateCounts[candidate.label]) or 0
+end
+
+local function SmartAdvertiserCandidateIsCapped(needs, candidate)
+    return candidate and candidate.softCap and SmartAdvertiserCandidateCount(needs, candidate) >= candidate.softCap
+end
+
+local function SmartAdvertiserRoleHasCappedCandidate(needs, role)
+    for _, candidate in ipairs(SMART_ADVERTISER_CANDIDATES) do
+        if NormalizeOrganizerRole(candidate.role) == role and SmartAdvertiserCandidateIsCapped(needs, candidate) then
+            return true
+        end
+    end
+    return false
+end
+
 local function SmartAdvertiserFirstSpecNeed(needs, role, bucket)
     for _, label in ipairs(needs and needs.specNeeds or {}) do
         local candidate = SmartAdvertiserCandidateForLabel(label)
-        if candidate and NormalizeOrganizerRole(candidate.role) == role and (not bucket or candidate.bucket == bucket) then
+        if candidate and not SmartAdvertiserCandidateIsCapped(needs, candidate) and NormalizeOrganizerRole(candidate.role) == role and (not bucket or candidate.bucket == bucket) then
             return label
         end
     end
     return nil
+end
+
+local function SmartAdvertiserSpecificNeedLabels(needs, role, bucket, displayOrder)
+    local labels = {}
+    local selectedOrder = {}
+
+    for index, label in ipairs(needs and needs.specNeeds or {}) do
+        local candidate = SmartAdvertiserCandidateForLabel(label)
+        if candidate and not SmartAdvertiserCandidateIsCapped(needs, candidate) and NormalizeOrganizerRole(candidate.role) == role and (not bucket or candidate.bucket == bucket) then
+            labels[#labels + 1] = label
+            selectedOrder[label] = index
+        end
+    end
+
+    if displayOrder then
+        table.sort(labels, function(left, right)
+            local leftOrder = displayOrder[left] or 1000
+            local rightOrder = displayOrder[right] or 1000
+            if leftOrder ~= rightOrder then
+                return leftOrder < rightOrder
+            end
+            return (selectedOrder[left] or 1000) < (selectedOrder[right] or 1000)
+        end)
+    end
+
+    return labels
+end
+
+local function SmartAdvertiserShortNeedLabels(labels, maxCount)
+    local parts = {}
+    maxCount = maxCount or #(labels or {})
+    for index, label in ipairs(labels or {}) do
+        if index > maxCount then
+            break
+        end
+        parts[#parts + 1] = SmartAdvertiserShortNeedLabel(label)
+    end
+    return parts
 end
 
 local function SmartAdvertiserDpsBucketInfo(needs)
@@ -882,19 +953,63 @@ local function SmartAdvertiserSpecificDpsNeed(needs)
     return label and SmartAdvertiserShortNeedLabel(label) or SmartAdvertiserDpsBucketNeed(needs)
 end
 
+local function SmartAdvertiserSpecificTankNeedText(needs)
+    local tanksNeeded = needs and needs.tanksNeeded or 0
+    if tanksNeeded <= 0 then
+        return nil
+    end
+
+    local stats = needs and needs.stats or {}
+    if (needs.raidSize or 0) <= 10 and (needs.desiredTanks or 0) <= 2 and (stats.tanks or 0) >= 1 then
+        return nil
+    end
+    if tanksNeeded > 1 and ((needs.raidSize or 0) <= 10 or tanksNeeded > 2 or (needs.rosterSize or 0) < 10) then
+        return nil
+    end
+
+    local labels = SmartAdvertiserSpecificNeedLabels(needs, ROLE_TANK, nil, SMART_ADVERTISER_TANK_DISPLAY_ORDER)
+    if #labels == 0 then
+        return nil
+    end
+    return SmartAdvertiserJoinNeeds(SmartAdvertiserShortNeedLabels(labels, tanksNeeded))
+end
+
 local function SmartAdvertiserTankNeedText(needs)
+    local specific = SmartAdvertiserSpecificTankNeedText(needs)
+    if specific then
+        return specific
+    end
     if (needs.tanksNeeded or 0) > 1 then
         return "tanks"
     end
-    local stats = needs and needs.stats or {}
-    if (needs.raidSize or 0) <= 10 and (needs.desiredTanks or 0) <= 2 and (stats.tanks or 0) >= 1 then
+    if (needs.raidSize or 0) <= 10 and (needs.desiredTanks or 0) <= 2 and ((needs.stats and needs.stats.tanks) or 0) >= 1 then
         return "tank"
     end
     local label = SmartAdvertiserFirstSpecNeed(needs, ROLE_TANK)
     return label and SmartAdvertiserShortNeedLabel(label) or "tank"
 end
 
+local function SmartAdvertiserSpecificHealerNeedText(needs)
+    local healersNeeded = needs and needs.healersNeeded or 0
+    if healersNeeded <= 0 then
+        return nil
+    end
+
+    local labels = SmartAdvertiserSpecificNeedLabels(needs, ROLE_HEALER, nil, SMART_ADVERTISER_HEALER_DISPLAY_ORDER)
+    if #labels == 0 then
+        return nil
+    end
+    if healersNeeded == 1 or (SmartAdvertiserRoleHasCappedCandidate(needs, ROLE_HEALER) and (needs.rosterSize or 0) >= 10) then
+        return SmartAdvertiserJoinNeeds(SmartAdvertiserShortNeedLabels(labels, healersNeeded))
+    end
+    return nil
+end
+
 local function SmartAdvertiserHealerNeedText(needs)
+    local specific = SmartAdvertiserSpecificHealerNeedText(needs)
+    if specific then
+        return specific
+    end
     if (needs.healersNeeded or 0) > 1 then
         return "heals"
     end
@@ -912,10 +1027,10 @@ end
 local function SmartAdvertiserBroadRoleNeedText(needs)
     local parts = {}
     if (needs.tanksNeeded or 0) > 0 then
-        parts[#parts + 1] = (needs.tanksNeeded or 0) > 1 and "tanks" or "tank"
+        parts[#parts + 1] = SmartAdvertiserTankNeedText(needs)
     end
     if (needs.healersNeeded or 0) > 0 then
-        parts[#parts + 1] = "heals"
+        parts[#parts + 1] = SmartAdvertiserHealerNeedText(needs)
     end
     if (needs.dpsNeeded or 0) > 0 then
         parts[#parts + 1] = SmartAdvertiserDpsNeedText(needs)
@@ -926,10 +1041,10 @@ end
 local function SmartAdvertiserMixedRoleNeedText(needs)
     local parts = {}
     if (needs.tanksNeeded or 0) > 0 then
-        parts[#parts + 1] = (needs.tanksNeeded or 0) > 1 and "tanks" or "tank"
+        parts[#parts + 1] = SmartAdvertiserTankNeedText(needs)
     end
     if (needs.healersNeeded or 0) > 0 then
-        parts[#parts + 1] = "heals"
+        parts[#parts + 1] = SmartAdvertiserHealerNeedText(needs)
     end
     if (needs.dpsNeeded or 0) > 0 then
         parts[#parts + 1] = "DPS"
@@ -940,13 +1055,17 @@ end
 local function SmartAdvertiserMixedPriorityNeedText(needs, dpsPriority)
     local parts = {}
     if (needs.tanksNeeded or 0) > 0 then
-        parts[#parts + 1] = (needs.tanksNeeded or 0) > 1 and "tanks" or "tank"
+        parts[#parts + 1] = SmartAdvertiserTankNeedText(needs)
     end
     if (needs.healersNeeded or 0) > 0 then
-        parts[#parts + 1] = "heals"
+        parts[#parts + 1] = SmartAdvertiserHealerNeedText(needs)
     end
     parts[#parts + 1] = dpsPriority
     return SmartAdvertiserJoinNeeds(parts)
+end
+
+local function SmartAdvertiserHasSpecificRoleNeed(needs)
+    return SmartAdvertiserSpecificTankNeedText(needs) ~= nil or SmartAdvertiserSpecificHealerNeedText(needs) ~= nil
 end
 
 local function SmartAdvertiserNeedText(needs)
@@ -964,6 +1083,9 @@ local function SmartAdvertiserNeedText(needs)
             local dpsPriority = SmartAdvertiserDpsPriorityText(needs)
             if dpsPriority then
                 return SmartAdvertiserMixedPriorityNeedText(needs, dpsPriority)
+            end
+            if (needs.rosterSize or 0) >= 10 and SmartAdvertiserHasSpecificRoleNeed(needs) then
+                return SmartAdvertiserMixedRoleNeedText(needs)
             end
             if (needs.openSlots or 0) <= 8 then
                 return SmartAdvertiserMixedRoleNeedText(needs)
@@ -3630,14 +3752,39 @@ local function CopySmartAdvertiserContext(context)
     return copy
 end
 
+local function SmartAdvertiserCandidateMatchesUnit(unit, candidate)
+    if not unit or not candidate or unit.class ~= candidate.class then
+        return false
+    end
+
+    local candidateRole = NormalizeOrganizerRole(candidate.role)
+    if RoleFromSpec(unit.class, unit.spec, unit.role) ~= candidateRole then
+        return false
+    end
+
+    if candidateRole == ROLE_HEALER or candidateRole == ROLE_TANK then
+        return true
+    end
+
+    return unit.spec == candidate.spec
+end
+
 local function CountSmartAdvertiserCandidate(players, candidate)
     local count = 0
     for _, unit in ipairs(players or {}) do
-        if unit.class == candidate.class and unit.spec == candidate.spec and NormalizeOrganizerRole(unit.role) == NormalizeOrganizerRole(candidate.role) then
+        if SmartAdvertiserCandidateMatchesUnit(unit, candidate) then
             count = count + 1
         end
     end
     return count
+end
+
+local function BuildSmartAdvertiserCandidateCounts(players)
+    local counts = {}
+    for _, candidate in ipairs(SMART_ADVERTISER_CANDIDATES) do
+        counts[candidate.label] = CountSmartAdvertiserCandidate(players, candidate)
+    end
+    return counts
 end
 
 local function CountSmartAdvertiserClass(players, classFile)
@@ -3802,10 +3949,12 @@ function Grouper:BuildSmartAdvertiserNeeds(context, config)
 
     local maxSuggestions = openSlots <= 6 and math.min(openSlots, 5) or math.min(openSlots, 4)
     local specNeeds = self:SelectSmartAdvertiserCandidates(context, config, maxSuggestions)
+    local candidateCounts = BuildSmartAdvertiserCandidateCounts(context.players)
 
     return {
         roleNeeds = roleNeeds,
         specNeeds = specNeeds,
+        candidateCounts = candidateCounts,
         tanksNeeded = tanksNeeded,
         healersNeeded = healersNeeded,
         dpsNeeded = dpsNeeded,
