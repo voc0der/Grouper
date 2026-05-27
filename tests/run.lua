@@ -415,6 +415,21 @@ test("smart advertiser gets specific only when the slot is specific", function()
     assertEquals(manyTankMsg, "LFM Gruul 22/25 - need tanks", "multiple missing tanks should stay broad")
 end)
 
+test("smart advertiser keeps 10-player off-tank asks broad", function()
+    local players = {
+        unit("Shield", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Light", "PRIEST", "HEALER", "HOLY", 2),
+        unit("Renewal", "SHAMAN", "HEALER", "RESTORATION", 2),
+    }
+    addUnits(players, 6, "Dps", "MAGE", "DAMAGER", "MAGE_CASTER", 2)
+
+    local msg = T.GenerateSmartAdvertiserMessageForContext("Karazhan", { size = 10, tanks = 2, healers = 2 }, { players = players, groupCount = 2, configuredSize = 10 })
+
+    assertEquals(msg, "LFM Kara 9/10 - need tank", "10-player second tank asks should accept bear or prot warrior")
+    assertTrue(string.find(msg, "bear", 1, true) == nil, "10-player off-tank ask should not force bear")
+    assertTrue(string.find(msg, "prot warr", 1, true) == nil, "10-player off-tank ask should not force warrior either")
+end)
+
 test("smart advertiser can ask for melee or a specific caster", function()
     local meleePlayers = {
         unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
@@ -499,6 +514,24 @@ test("fill simulation supports single-tank and solo-healer 10-player targets", f
     assertEquals(plan.rosterSize, 10, "edgy 10-player fill sim should finish at 10")
     assertEquals(countMatching(plan.context.players, function(player) return player.role == "TANK" end), 1, "single-tank 10-player sim should not add extra tanks")
     assertEquals(countMatching(plan.context.players, function(player) return player.role == "HEALER" end), 1, "solo-healer 10-player sim should not add extra healers")
+end)
+
+test("fill simulation can use prot warrior as a 10-player off-tank", function()
+    local state = T.BuildSmartAdvertiserFillState({
+        bossName = "Karazhan",
+        configuredSize = 10,
+        sequence = 2,
+        speed = 8,
+        startSize = 3,
+        config = { size = 10, tanks = 2, healers = 2, category = "10-Man Raid" },
+    })
+    local plan = finishFillState(state, 30)
+
+    assertTrue(state.complete, "prot warrior 10-player fill sim should complete")
+    assertEquals(plan.rosterSize, 10, "prot warrior 10-player fill sim should finish at 10")
+    assertEquals(countMatching(plan.context.players, function(player) return player.role == "TANK" end), 2, "prot warrior 10-player sim should still respect two tanks")
+    assertEquals(countMatching(plan.context.players, function(player) return player.role == "TANK" and player.class == "WARRIOR" end), 1, "prot warrior should be accepted as the second Kara tank")
+    assertTrue(not logIncludes(plan.fillLog, "need bear"), "10-player off-tank sim should not advertise only bear")
 end)
 
 test("fill simulation respects 40-player tank and healer targets", function()

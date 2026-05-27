@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.62] - 2026-05-27
+
+### Fixed
+- Karazhan Smart Advertiser off-tank asks now stay broad so prot Warriors and bears are both valid second tanks.
+- Karazhan fill simulations now include a prot Warrior off-tank regression path instead of always filling the second tank as a bear.
+
 ## [1.0.61] - 2026-05-27
 
 ### Fixed
@@ -188,7 +194,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.61...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.62...HEAD
+[1.0.62]: https://github.com/voc0der/Grouper/compare/v1.0.61...v1.0.62
 [1.0.61]: https://github.com/voc0der/Grouper/compare/v1.0.60...v1.0.61
 [1.0.54]: https://github.com/voc0der/Grouper/compare/v1.0.53...v1.0.54
 [1.0.53]: https://github.com/voc0der/Grouper/compare/v1.0.52...v1.0.53
