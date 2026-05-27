@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.63"
+Grouper.version = "1.0.64"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
