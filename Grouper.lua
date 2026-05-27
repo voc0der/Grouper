@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.63"
+Grouper.version = "1.0.64"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -671,6 +671,34 @@ local SMART_ADVERTISER_HEALER_DISPLAY_ORDER = {
     ["Holy Paladin"] = 4,
 }
 
+local SMART_ADVERTISER_BASELINE_DPS_TARGETS = {
+    ["Ele Shaman"] = 1,
+    ["Enh Shaman"] = 1,
+    ["Boomkin"] = 1,
+    ["Shadow Priest"] = 1,
+}
+
+local SMART_ADVERTISER_BASELINE_DPS_ORDER = {
+    "Ele Shaman",
+    "Enh Shaman",
+    "Boomkin",
+    "Shadow Priest",
+}
+
+local SMART_ADVERTISER_BASELINE_DPS_CASTER_ORDER = {
+    "Ele Shaman",
+    "Boomkin",
+    "Shadow Priest",
+    "Enh Shaman",
+}
+
+local SMART_ADVERTISER_BASELINE_DPS_PHYSICAL_ORDER = {
+    "Enh Shaman",
+    "Ele Shaman",
+    "Boomkin",
+    "Shadow Priest",
+}
+
 local function PrintGrouper(message, color)
     local prefix = "|cff00ff00[Grouper]|r "
     if color then
@@ -947,6 +975,51 @@ local function SmartAdvertiserDpsPriorityText(needs)
     return nil
 end
 
+local function SmartAdvertiserBaselineDpsOrder(needs)
+    local _, bucket, _, gap = SmartAdvertiserDpsBucketInfo(needs)
+    if bucket == "physical" and gap >= 2 then
+        return SMART_ADVERTISER_BASELINE_DPS_PHYSICAL_ORDER
+    end
+    if bucket == "caster" and gap >= 2 then
+        return SMART_ADVERTISER_BASELINE_DPS_CASTER_ORDER
+    end
+    return SMART_ADVERTISER_BASELINE_DPS_ORDER
+end
+
+local function SmartAdvertiserMissingBaselineDpsLabels(needs)
+    local labels = {}
+    if not needs or (needs.raidSize or 0) < 25 or (needs.rosterSize or 0) < 16 or (needs.dpsNeeded or 0) <= 0 then
+        return labels
+    end
+
+    for _, label in ipairs(SmartAdvertiserBaselineDpsOrder(needs)) do
+        local candidate = SmartAdvertiserCandidateForLabel(label)
+        local target = SMART_ADVERTISER_BASELINE_DPS_TARGETS[label] or 1
+        if candidate and not SmartAdvertiserCandidateIsCapped(needs, candidate) and SmartAdvertiserCandidateCount(needs, candidate) < target then
+            labels[#labels + 1] = label
+        end
+    end
+
+    return labels
+end
+
+local function SmartAdvertiserPriorityDpsNeedText(needs)
+    local labels = SmartAdvertiserMissingBaselineDpsLabels(needs)
+    if #labels == 0 then
+        return nil
+    end
+
+    local dpsNeeded = needs and needs.dpsNeeded or 0
+    local maxUtility = dpsNeeded <= 1 and 1 or math.min(2, dpsNeeded - 1)
+    local parts = SmartAdvertiserShortNeedLabels(labels, maxUtility)
+
+    if dpsNeeded > #parts then
+        parts[#parts + 1] = SmartAdvertiserDpsPriorityText(needs) or "DPS"
+    end
+
+    return SmartAdvertiserJoinNeeds(parts)
+end
+
 local function SmartAdvertiserSpecificDpsNeed(needs)
     local _, bucket = SmartAdvertiserDpsBucketNeed(needs)
     local label = SmartAdvertiserFirstSpecNeed(needs, ROLE_DAMAGER, bucket) or SmartAdvertiserFirstSpecNeed(needs, ROLE_DAMAGER)
@@ -1018,6 +1091,10 @@ local function SmartAdvertiserHealerNeedText(needs)
 end
 
 local function SmartAdvertiserDpsNeedText(needs)
+    local priority = SmartAdvertiserPriorityDpsNeedText(needs)
+    if priority then
+        return priority
+    end
     if (needs.dpsNeeded or 0) > 1 then
         return SmartAdvertiserDpsBucketNeed(needs)
     end
@@ -1080,7 +1157,7 @@ local function SmartAdvertiserNeedText(needs)
     local roleBucketCount = SmartAdvertiserRoleBucketCount(needs)
     if (needs.openSlots or 0) > 6 then
         if roleBucketCount > 1 then
-            local dpsPriority = SmartAdvertiserDpsPriorityText(needs)
+            local dpsPriority = SmartAdvertiserPriorityDpsNeedText(needs) or SmartAdvertiserDpsPriorityText(needs)
             if dpsPriority then
                 return SmartAdvertiserMixedPriorityNeedText(needs, dpsPriority)
             end

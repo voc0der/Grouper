@@ -391,7 +391,7 @@ test("smart advertiser flags caster priority when melee is frontloaded", functio
     })
     local msg18 = T.GenerateSmartAdvertiserMessageForContext("Magtheridon's Lair", { size = 25, tanks = 3, healers = 6 }, context18)
 
-    assertEquals(msg18, "LFM Mag 18/25 - need heals + DPS", "late-mid ads should name broad roles instead of falling back to need all")
+    assertEquals(msg18, "LFM Mag 18/25 - need heals + spriest", "late-mid ads should shape missing baseline utility instead of falling back to need all")
 end)
 
 test("smart advertiser names missing 25-player tank shapes once roster has signal", function()
@@ -457,6 +457,86 @@ test("smart advertiser keeps broad heals when every healer class is still invite
     assertEquals(msg, "LFM Gruul 13/25 - need heals + caster dps", "broad heals should stay readable when healer classes are not capped")
 end)
 
+test("smart advertiser starts shaping missing baseline DPS utility by mid-fill", function()
+    local elePlayers = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+    }
+    addUnits(elePlayers, 6, "Heal", "PRIEST", "HEALER", "HOLY", 5)
+    elePlayers[#elePlayers + 1] = unit("Windfury", "SHAMAN", "DAMAGER", "ENHANCEMENT", 2)
+    elePlayers[#elePlayers + 1] = unit("Moonchef", "DRUID", "DAMAGER", "BALANCE", 3)
+    elePlayers[#elePlayers + 1] = unit("Mindtap", "PRIEST", "DAMAGER", "SHADOW", 4)
+    elePlayers[#elePlayers + 1] = unit("Dotone", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
+    elePlayers[#elePlayers + 1] = unit("Frosty", "MAGE", "DAMAGER", "MAGE_CASTER", 3)
+    elePlayers[#elePlayers + 1] = unit("Backstab", "ROGUE", "DAMAGER", "ROGUE_DPS", 2)
+    elePlayers[#elePlayers + 1] = unit("Marks", "HUNTER", "DAMAGER", "MARKSMANSHIP", 2)
+
+    local eleMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(elePlayers))
+
+    assertEquals(eleMsg, "LFM Gruul 16/25 - need ele + DPS", "missing elemental should be shaped before the last DPS slot")
+
+    local enhPlayers = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+    }
+    addUnits(enhPlayers, 6, "Heal", "PRIEST", "HEALER", "HOLY", 5)
+    enhPlayers[#enhPlayers + 1] = unit("Stormbolt", "SHAMAN", "DAMAGER", "ELEMENTAL", 3)
+    enhPlayers[#enhPlayers + 1] = unit("Moonchef", "DRUID", "DAMAGER", "BALANCE", 3)
+    enhPlayers[#enhPlayers + 1] = unit("Mindtap", "PRIEST", "DAMAGER", "SHADOW", 4)
+    enhPlayers[#enhPlayers + 1] = unit("Dotone", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
+    enhPlayers[#enhPlayers + 1] = unit("Frosty", "MAGE", "DAMAGER", "MAGE_CASTER", 3)
+    enhPlayers[#enhPlayers + 1] = unit("Backstab", "ROGUE", "DAMAGER", "ROGUE_DPS", 2)
+    enhPlayers[#enhPlayers + 1] = unit("Marks", "HUNTER", "DAMAGER", "MARKSMANSHIP", 2)
+
+    local enhMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(enhPlayers))
+
+    assertEquals(enhMsg, "LFM Gruul 16/25 - need enh + melee dps", "missing enhancement should be shaped while physical DPS is light")
+end)
+
+test("smart advertiser watches boomkin and shadow priest as baseline 25-player utility", function()
+    local players = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+    }
+    addUnits(players, 6, "Heal", "PRIEST", "HEALER", "HOLY", 5)
+    players[#players + 1] = unit("Stormbolt", "SHAMAN", "DAMAGER", "ELEMENTAL", 3)
+    players[#players + 1] = unit("Windfury", "SHAMAN", "DAMAGER", "ENHANCEMENT", 2)
+    players[#players + 1] = unit("Dotone", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
+    players[#players + 1] = unit("Frosty", "MAGE", "DAMAGER", "MAGE_CASTER", 3)
+    players[#players + 1] = unit("Backstab", "ROGUE", "DAMAGER", "ROGUE_DPS", 2)
+    players[#players + 1] = unit("Marks", "HUNTER", "DAMAGER", "MARKSMANSHIP", 2)
+    players[#players + 1] = unit("Slammer", "WARRIOR", "DAMAGER", "WARRIOR_DPS", 2)
+
+    local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
+
+    assertEquals(msg, "LFM Gruul 16/25 - need boomkin + spriest + DPS", "boomkin and shadow priest should be shaped as baseline 25-player utility")
+end)
+
+test("smart advertiser names missing utility DPS alongside role shortages", function()
+    local players = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Holyshield", "PALADIN", "HEALER", "HOLY", 5),
+        unit("Cleanse", "PALADIN", "HEALER", "HOLY", 5),
+        unit("Tree", "DRUID", "HEALER", "RESTORATION", 5),
+        unit("Prayer", "PRIEST", "HEALER", "HOLY", 5),
+        unit("Windfury", "SHAMAN", "DAMAGER", "ENHANCEMENT", 2),
+        unit("Moonchef", "DRUID", "DAMAGER", "BALANCE", 3),
+        unit("Mindtap", "PRIEST", "DAMAGER", "SHADOW", 4),
+    }
+    addUnits(players, 4, "Lock", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
+    addUnits(players, 2, "Rogue", "ROGUE", "DAMAGER", "ROGUE_DPS", 2)
+    players[#players + 1] = unit("Slammer", "WARRIOR", "DAMAGER", "WARRIOR_DPS", 2)
+    players[#players + 1] = unit("Marks", "HUNTER", "DAMAGER", "MARKSMANSHIP", 2)
+
+    local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
+
+    assertEquals(msg, "LFM Gruul 17/25 - need bear + rsham + priest + ele + DPS", "utility DPS shaping should not wait for tank and healer asks to finish")
+end)
+
 test("smart advertiser gets specific only when the slot is specific", function()
     local tankPlayers = {
         unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
@@ -503,7 +583,7 @@ test("smart advertiser can ask for melee or a specific caster", function()
     addUnits(meleePlayers, 13, "Caster", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
     local meleeMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 7 }, context(meleePlayers))
 
-    assertEquals(meleeMsg, "LFM Gruul 23/25 - need melee dps", "physical-light comps should ask for melee DPS")
+    assertEquals(meleeMsg, "LFM Gruul 23/25 - need enh + melee dps", "physical-light comps should ask for enhancement plus melee DPS")
 
     local magePlayers = {
         unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
@@ -519,7 +599,30 @@ test("smart advertiser can ask for melee or a specific caster", function()
     addUnits(magePlayers, 7, "Melee", "ROGUE", "DAMAGER", "ROGUE_DPS", 2)
     local mageMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 7 }, context(magePlayers))
 
-    assertEquals(mageMsg, "LFM Gruul 24/25 - need mage", "one caster slot should use the best specific class when clear")
+    assertEquals(mageMsg, "LFM Gruul 24/25 - need enh", "one DPS slot should prefer missing baseline utility")
+end)
+
+test("smart advertiser names a missing rogue for a late melee slot", function()
+    local players = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+    }
+    addUnits(players, 6, "Heal", "PRIEST", "HEALER", "HOLY", 5)
+    players[#players + 1] = unit("Stormbolt", "SHAMAN", "DAMAGER", "ELEMENTAL", 3)
+    players[#players + 1] = unit("Windfury", "SHAMAN", "DAMAGER", "ENHANCEMENT", 2)
+    players[#players + 1] = unit("Moonchef", "DRUID", "DAMAGER", "BALANCE", 3)
+    players[#players + 1] = unit("Mindtap", "PRIEST", "DAMAGER", "SHADOW", 4)
+    addUnits(players, 2, "Lock", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
+    addUnits(players, 3, "Mage", "MAGE", "DAMAGER", "MAGE_CASTER", 3)
+    addUnits(players, 2, "Hunter", "HUNTER", "DAMAGER", "MARKSMANSHIP", 2)
+    addUnits(players, 2, "Warrior", "WARRIOR", "DAMAGER", "WARRIOR_DPS", 2)
+    players[#players + 1] = unit("Retadin", "PALADIN", "DAMAGER", "RETRIBUTION", 2)
+    players[#players + 1] = unit("Catshift", "DRUID", "DAMAGER", "FERAL", 2)
+
+    local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
+
+    assertEquals(msg, "LFM Gruul 24/25 - need rogue", "late melee slots should call out rogue when the raid has none")
 end)
 
 test("fill simulation logs ads and finishes with a scored comp", function()
