@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Smart Organize now splits 10-player warrior/bear plus prot paladin tank pairs so the prot paladin supports the caster group while the melee tank keeps the physical group.
+
 ## [1.0.66] - 2026-05-27
 
 ### Fixed

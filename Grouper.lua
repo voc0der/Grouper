@@ -3303,9 +3303,16 @@ local function ScoreOrganizerGroupByArchetype(group, groupIndex, groupCount)
     elseif info.key == "support" then
         score = score + stats.casterDps * 4
         score = score + stats.healers * 3
+        score = score + stats.restoShamans * 4
         score = score + stats.shadowPriests * 5
         score = score + stats.elemental * 5
         score = score + stats.boomkins * 5
+        if groupCount == 2 and stats.protPaladinTanks > 0 and stats.casterDps >= 2 then
+            score = score + 6
+            if stats.elemental > 0 or stats.boomkins > 0 then
+                score = score + 6
+            end
+        end
     end
 
     if stats.total > RAID_GROUP_SIZE then
@@ -3340,6 +3347,19 @@ function Grouper:ScoreOrganizerLayout(layout)
 
     for groupIndex, group in ipairs(layout or {}) do
         rawScore = rawScore + ScoreOrganizerGroupByArchetype(group, groupIndex, groupCount)
+    end
+    if groupCount == 2 then
+        local meleeStats = BuildOrganizerGroupStats(layout[1])
+        local supportStats = BuildOrganizerGroupStats(layout[2])
+        if meleeStats.warriorOrBearTanks > 0 and supportStats.protPaladinTanks > 0 and supportStats.casterDps >= 2 then
+            rawScore = rawScore + 10
+            if meleeStats.healers > 0 then
+                rawScore = rawScore + 4
+            end
+        end
+        if meleeStats.warriorOrBearTanks > 0 and meleeStats.protPaladinTanks > 0 and supportStats.casterDps >= 2 then
+            rawScore = rawScore - 8
+        end
     end
 
     local moves = CountOrganizerMoves(layout)
