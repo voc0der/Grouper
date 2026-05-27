@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.65"
+Grouper.version = "1.0.66"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -678,6 +678,11 @@ local SMART_ADVERTISER_BASELINE_DPS_TARGETS = {
     ["Shadow Priest"] = 1,
 }
 
+local SMART_ADVERTISER_TEN_PLAYER_BASELINE_DPS_TARGETS = {
+    ["Ele Shaman"] = 1,
+    ["Enh Shaman"] = 1,
+}
+
 local SMART_ADVERTISER_BASELINE_DPS_ORDER = {
     "Ele Shaman",
     "Enh Shaman",
@@ -845,6 +850,15 @@ local function SmartAdvertiserBossLabel(bossName)
     return SMART_ADVERTISER_BOSS_ALIASES[bossName] or bossName or "raid"
 end
 
+local function SmartAdvertiserHalfFullThreshold(raidSize)
+    raidSize = math.max(1, math.floor(SafeNumber(raidSize, defaults.raidSize) + 0.5))
+    return math.max(1, math.ceil(raidSize * 0.5))
+end
+
+local function SmartAdvertiserCountThreshold(raidSize)
+    return math.min(7, SmartAdvertiserHalfFullThreshold(raidSize))
+end
+
 local function SmartAdvertiserShortNeedLabel(label)
     return SMART_ADVERTISER_SHORT_LABELS[label] or string.lower(tostring(label or ""))
 end
@@ -993,16 +1007,36 @@ local function SmartAdvertiserBaselineDpsOrder(needs)
     return SMART_ADVERTISER_BASELINE_DPS_ORDER
 end
 
+local function SmartAdvertiserBaselineDpsTargets(needs)
+    local raidSize = needs and needs.raidSize or defaults.raidSize
+    if raidSize <= 10 then
+        return SMART_ADVERTISER_TEN_PLAYER_BASELINE_DPS_TARGETS
+    end
+    if raidSize >= 25 then
+        return SMART_ADVERTISER_BASELINE_DPS_TARGETS
+    end
+    return nil
+end
+
+local function SmartAdvertiserBaselineDpsThreshold(needs)
+    local raidSize = needs and needs.raidSize or defaults.raidSize
+    if raidSize <= 10 then
+        return SmartAdvertiserHalfFullThreshold(raidSize)
+    end
+    return 16
+end
+
 local function SmartAdvertiserMissingBaselineDpsLabels(needs)
     local labels = {}
-    if not needs or (needs.raidSize or 0) < 25 or (needs.rosterSize or 0) < 16 or (needs.dpsNeeded or 0) <= 0 then
+    local targets = SmartAdvertiserBaselineDpsTargets(needs)
+    if not needs or not targets or (needs.rosterSize or 0) < SmartAdvertiserBaselineDpsThreshold(needs) or (needs.dpsNeeded or 0) <= 0 then
         return labels
     end
 
     for _, label in ipairs(SmartAdvertiserBaselineDpsOrder(needs)) do
         local candidate = SmartAdvertiserCandidateForLabel(label)
-        local target = SMART_ADVERTISER_BASELINE_DPS_TARGETS[label] or 1
-        if candidate and not SmartAdvertiserCandidateIsCapped(needs, candidate) and SmartAdvertiserCandidateCount(needs, candidate) < target then
+        local target = targets[label]
+        if target and candidate and not SmartAdvertiserCandidateIsCapped(needs, candidate) and SmartAdvertiserCandidateCount(needs, candidate) < target then
             labels[#labels + 1] = label
         end
     end
@@ -1088,10 +1122,42 @@ local function SmartAdvertiserDpsNeedBlock(needs, mode)
     return SmartAdvertiserRoleNeedBlock("dps", labels, " pref")
 end
 
+local function SmartAdvertiserTenPlayerTankNeedLabels(needs)
+    local tanksNeeded = needs and needs.tanksNeeded or 0
+    if tanksNeeded <= 0 or (needs.raidSize or 0) > 10 or (needs.desiredTanks or 0) ~= 2 then
+        return nil
+    end
+
+    local protPaladin = SmartAdvertiserCandidateForLabel("Prot Paladin")
+    local feralTank = SmartAdvertiserCandidateForLabel("Feral Tank")
+    local protWarrior = SmartAdvertiserCandidateForLabel("Prot Warrior")
+    local hasProtPaladin = SmartAdvertiserCandidateCount(needs, protPaladin) > 0
+    local hasBearOrWarrior = SmartAdvertiserCandidateCount(needs, feralTank) > 0 or SmartAdvertiserCandidateCount(needs, protWarrior) > 0
+    local labels = {}
+
+    if not hasProtPaladin then
+        labels[#labels + 1] = SmartAdvertiserShortNeedLabel("Prot Paladin")
+    end
+    if not hasBearOrWarrior then
+        labels[#labels + 1] = SmartAdvertiserShortNeedLabel("Feral Tank")
+        labels[#labels + 1] = SmartAdvertiserShortNeedLabel("Prot Warrior")
+    end
+
+    if #labels == 0 then
+        return nil
+    end
+    return labels
+end
+
 local function SmartAdvertiserSpecificTankNeedLabels(needs)
     local tanksNeeded = needs and needs.tanksNeeded or 0
     if tanksNeeded <= 0 then
         return nil
+    end
+
+    local tenPlayerLabels = SmartAdvertiserTenPlayerTankNeedLabels(needs)
+    if tenPlayerLabels then
+        return tenPlayerLabels
     end
 
     local stats = needs and needs.stats or {}
@@ -1189,8 +1255,24 @@ local function SmartAdvertiserHasSpecificRoleNeed(needs)
     return SmartAdvertiserSpecificTankNeedLabels(needs) ~= nil or SmartAdvertiserSpecificHealerNeedLabels(needs) ~= nil
 end
 
+local function SmartAdvertiserVitalRoleSteeringReached(needs)
+    if not needs or ((needs.tanksNeeded or 0) <= 0 and (needs.healersNeeded or 0) <= 0) then
+        return false
+    end
+
+    return (needs.rosterSize or 0) >= SmartAdvertiserHalfFullThreshold(needs.raidSize or defaults.raidSize)
+end
+
 local function SmartAdvertiserHasDpsPriorityNeed(needs)
     return #SmartAdvertiserDpsPriorityPreferenceLabels(needs) > 0
+end
+
+local function SmartAdvertiserShouldMixTenPlayerPriority(needs)
+    return needs
+        and (needs.raidSize or 0) <= 10
+        and (needs.dpsNeeded or 0) > 0
+        and ((needs.tanksNeeded or 0) > 0 or (needs.healersNeeded or 0) > 0)
+        and SmartAdvertiserHasDpsPriorityNeed(needs)
 end
 
 local function SmartAdvertiserNeedText(needs)
@@ -1198,7 +1280,7 @@ local function SmartAdvertiserNeedText(needs)
         return nil
     end
 
-    if (needs.rosterSize or 0) < 7 then
+    if (needs.rosterSize or 0) < 7 and not SmartAdvertiserVitalRoleSteeringReached(needs) then
         return "all"
     end
 
@@ -1207,6 +1289,9 @@ local function SmartAdvertiserNeedText(needs)
         if roleBucketCount > 1 then
             if SmartAdvertiserHasDpsPriorityNeed(needs) then
                 return SmartAdvertiserMixedPriorityNeedText(needs)
+            end
+            if SmartAdvertiserVitalRoleSteeringReached(needs) then
+                return SmartAdvertiserMixedRoleNeedText(needs)
             end
             if (needs.rosterSize or 0) >= 10 and SmartAdvertiserHasSpecificRoleNeed(needs) then
                 return SmartAdvertiserMixedRoleNeedText(needs)
@@ -1217,6 +1302,10 @@ local function SmartAdvertiserNeedText(needs)
             return "all"
         end
         return SmartAdvertiserBroadRoleNeedText(needs)
+    end
+
+    if SmartAdvertiserShouldMixTenPlayerPriority(needs) then
+        return SmartAdvertiserMixedPriorityNeedText(needs)
     end
 
     if (needs.tanksNeeded or 0) > 0 then
@@ -4119,7 +4208,7 @@ function Grouper:GenerateSmartAdvertiserMessageForContext(bossName, config, cont
     if hrItem and hrItem ~= "" then
         header = header .. " (" .. hrItem .. " HR)"
     end
-    if numRaid >= 7 then
+    if numRaid >= SmartAdvertiserCountThreshold(raidSize) then
         header = string.format("%s %d/%d", header, numRaid, raidSize)
     end
 
@@ -4701,11 +4790,11 @@ function Grouper:GenerateMessage()
     end
 
     -- Add needs
-    if raidPercent < 0.6 then
-        -- Under 60%: simple "Need all" message
+    if raidPercent < 0.5 then
+        -- Under 50%: simple "Need all" message
         msg = msg .. " - Need all"
     else
-        -- At 60%+: show role needs (tanks/healers)
+        -- At 50%+: show role needs (tanks/healers)
         -- At 80%+: also show missing classes
         local roleNeeds = {}
         local classNeeds = {}
@@ -6073,18 +6162,33 @@ function Grouper:SetSmartOrganizeFrameLines(lines)
     if not frame then return end
 
     local rowHeight = 16
+    local rowGap = 2
+    local contentWidth = 620
+    if frame.ScrollChild.GetWidth then
+        local measuredWidth = frame.ScrollChild:GetWidth()
+        if measuredWidth and measuredWidth > 0 then
+            contentWidth = measuredWidth
+        end
+    end
+    contentWidth = math.max(1, math.floor(contentWidth + 0.5))
+    local yOffset = 0
     frame.Rows = frame.Rows or {}
     for index, line in ipairs(lines or {}) do
         local row = frame.Rows[index]
         if not row then
             row = frame.ScrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             row:SetJustifyH("LEFT")
-            row:SetWidth(620)
+            if row.SetJustifyV then row:SetJustifyV("TOP") end
+            if row.SetWordWrap then row:SetWordWrap(true) end
             frame.Rows[index] = row
         end
         row:ClearAllPoints()
-        row:SetPoint("TOPLEFT", frame.ScrollChild, "TOPLEFT", 0, -((index - 1) * rowHeight))
+        row:SetPoint("TOPLEFT", frame.ScrollChild, "TOPLEFT", 0, -yOffset)
+        row:SetWidth(contentWidth)
         row:SetText(line.text or "")
+        local textHeight = row.GetStringHeight and row:GetStringHeight() or rowHeight
+        local lineHeight = math.max(rowHeight, math.ceil((textHeight or rowHeight) + 0.5))
+        row:SetHeight(lineHeight)
         if line.kind == "warning" then
             row:SetTextColor(1.0, 0.55, 0.15)
         elseif line.kind == "good" then
@@ -6103,13 +6207,14 @@ function Grouper:SetSmartOrganizeFrameLines(lines)
             row:SetTextColor(1.0, 1.0, 1.0)
         end
         row:Show()
+        yOffset = yOffset + lineHeight + rowGap
     end
 
     for index = #(lines or {}) + 1, #frame.Rows do
         frame.Rows[index]:Hide()
     end
 
-    frame.ScrollChild:SetHeight(math.max(1, #(lines or {}) * rowHeight))
+    frame.ScrollChild:SetHeight(math.max(1, yOffset))
 end
 
 local GROUP_BOARD_LABELS = {
