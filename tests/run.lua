@@ -394,6 +394,69 @@ test("smart advertiser flags caster priority when melee is frontloaded", functio
     assertEquals(msg18, "LFM Mag 18/25 - need heals + DPS", "late-mid ads should name broad roles instead of falling back to need all")
 end)
 
+test("smart advertiser names missing 25-player tank shapes once roster has signal", function()
+    local players = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Holyshield", "PALADIN", "HEALER", "HOLY", 5),
+        unit("Cleanse", "PALADIN", "HEALER", "HOLY", 5),
+        unit("Prayer", "PRIEST", "HEALER", "HOLY", 5),
+        unit("Lightwell", "PRIEST", "HEALER", "DISCIPLINE", 5),
+    }
+    addUnits(players, 7, "Caster", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
+
+    local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
+
+    assertEquals(msg, "LFM Gruul 12/25 - need bear + prot pal + rsham + druid + melee dps", "25-player tank and healer shaping should name the inviteable slots")
+    assertTrue(string.find(msg, "tanks", 1, true) == nil, "shaped tank asks should not collapse to generic tanks")
+    assertTrue(string.find(msg, "heals", 1, true) == nil, "capped healer classes should not produce a generic heals ask")
+    assertTrue(string.find(msg, "hpal", 1, true) == nil, "holy paladin should not be advertised once two are already in raid")
+end)
+
+test("smart advertiser keeps shaped tanks specific even with balanced DPS", function()
+    local players = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Holyshield", "PALADIN", "HEALER", "HOLY", 5),
+        unit("Prayer", "PRIEST", "HEALER", "HOLY", 5),
+    }
+    addUnits(players, 4, "Caster", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
+    addUnits(players, 5, "Melee", "ROGUE", "DAMAGER", "ROGUE_DPS", 2)
+
+    local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
+
+    assertEquals(msg, "LFM Gruul 12/25 - need bear + prot pal + heals + DPS", "shaped tank needs should not disappear into need all when DPS is balanced")
+end)
+
+test("smart advertiser avoids generic heals when a healer class is capped", function()
+    local players = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+        unit("Holyshield", "PALADIN", "HEALER", "HOLY", 5),
+        unit("Cleanse", "PALADIN", "HEALER", "HOLY", 5),
+    }
+    addUnits(players, 8, "Dps", "ROGUE", "DAMAGER", "ROGUE_DPS", 2)
+
+    local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
+
+    assertEquals(msg, "LFM Gruul 13/25 - need rsham + priest + druid + caster dps", "healer overloads should steer toward non-capped healer classes")
+    assertTrue(string.find(msg, "heals", 1, true) == nil, "generic heals would invite capped holy paladins")
+    assertTrue(string.find(msg, "hpal", 1, true) == nil, "capped holy paladin should be filtered from healer specifics")
+end)
+
+test("smart advertiser keeps broad heals when every healer class is still inviteable", function()
+    local players = {
+        unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
+        unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+        unit("Prayer", "PRIEST", "HEALER", "HOLY", 5),
+    }
+    addUnits(players, 9, "Dps", "ROGUE", "DAMAGER", "ROGUE_DPS", 2)
+
+    local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
+
+    assertEquals(msg, "LFM Gruul 13/25 - need heals + caster dps", "broad heals should stay readable when healer classes are not capped")
+end)
+
 test("smart advertiser gets specific only when the slot is specific", function()
     local tankPlayers = {
         unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
@@ -412,7 +475,7 @@ test("smart advertiser gets specific only when the slot is specific", function()
     addUnits(manyTankPlayers, 14, "Dps", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
     local manyTankMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 7 }, context(manyTankPlayers))
 
-    assertEquals(manyTankMsg, "LFM Gruul 22/25 - need tanks", "multiple missing tanks should stay broad")
+    assertEquals(manyTankMsg, "LFM Gruul 22/25 - need bear + prot warr", "multiple shaped 25-player tank slots should stay specific")
 end)
 
 test("smart advertiser keeps 10-player off-tank asks broad", function()
@@ -478,7 +541,7 @@ test("fill simulation logs ads and finishes with a scored comp", function()
     assertEquals(plan.rosterSize, 25, "final fill sim plan should contain the full raid")
     assertTrue(plan.score ~= nil, "final fill sim plan should have a Smart Organize score")
     assertTrue(logIncludes(plan.fillLog, "Join:"), "fill sim should log joins")
-    assertTrue(logIncludes(plan.fillLog, "heals + caster dps"), "fill sim should steer healer and caster DPS needs together when the sample fill is melee-heavy")
+    assertTrue(logIncludes(plan.fillLog, "caster dps"), "fill sim should steer toward caster DPS when the sample fill is melee-heavy")
     assertTrue(logIncludes(plan.fillLog, "Final score"), "fill sim should log the final score")
 end)
 
@@ -566,7 +629,7 @@ test("fill simulation can surface tank shortages from partial scenarios", functi
 
     T.AdvanceSmartAdvertiserFillState(state)
 
-    assertTrue(logIncludes(state.log, "need tank"), "fill sim should show tank shortages when tanks are not front-loaded")
+    assertTrue(logIncludes(state.log, "need bear") or logIncludes(state.log, "need prot pal") or logIncludes(state.log, "need prot warr"), "fill sim should show tank shortages when tanks are not front-loaded")
 end)
 
 test("fill simulation normalizes speed to 2x 4x or 8x", function()

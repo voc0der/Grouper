@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.63] - 2026-05-27
+
+### Fixed
+- Smart Advertiser now keeps shaped 25-player tank asks specific and filters capped healer classes out of broad healer ads.
+
 ## [1.0.62] - 2026-05-27
 
 ### Fixed
@@ -194,7 +199,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.62...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.63...HEAD
+[1.0.63]: https://github.com/voc0der/Grouper/compare/v1.0.62...v1.0.63
 [1.0.62]: https://github.com/voc0der/Grouper/compare/v1.0.61...v1.0.62
 [1.0.61]: https://github.com/voc0der/Grouper/compare/v1.0.60...v1.0.61
 [1.0.54]: https://github.com/voc0der/Grouper/compare/v1.0.53...v1.0.54
