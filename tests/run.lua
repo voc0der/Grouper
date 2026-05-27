@@ -348,7 +348,7 @@ test("smart advertiser writes human raid-lead messages", function()
 
     assertEquals(msg9, "LFM Gruul 9/25 - need all", "early counted ads should stay broad")
     assertTrue(string.find(msg9, "Priest Healer", 1, true) == nil, "message should not expose internal candidate labels")
-    assertTrue(string.find(msg9, " / ", 1, true) == nil, "message should not use machine-style slash-separated role blocks")
+    assertTrue(string.find(msg9, " + ", 1, true) == nil, "message should not use machine-style plus-separated role blocks")
     assertTrue(#msg9 <= 255, "message should stay chat-safe")
 end)
 
@@ -382,7 +382,7 @@ test("smart advertiser flags caster priority when melee is frontloaded", functio
     })
     local msg12 = T.GenerateSmartAdvertiserMessageForContext("Magtheridon's Lair", { size = 25, tanks = 3, healers = 6 }, context12)
 
-    assertEquals(msg12, "LFM Mag 12/25 - need heals + caster dps", "melee-heavy partial raids should advertise caster DPS and healer needs together")
+    assertEquals(msg12, "LFM Mag 12/25 - need heals / dps (caster pref)", "melee-heavy partial raids should advertise caster DPS and healer needs together")
 
     local context18 = T.BuildOrganizerPlanningContext({
         configuredSize = 25,
@@ -391,7 +391,7 @@ test("smart advertiser flags caster priority when melee is frontloaded", functio
     })
     local msg18 = T.GenerateSmartAdvertiserMessageForContext("Magtheridon's Lair", { size = 25, tanks = 3, healers = 6 }, context18)
 
-    assertEquals(msg18, "LFM Mag 18/25 - need heals + spriest", "late-mid ads should shape missing baseline utility instead of falling back to need all")
+    assertEquals(msg18, "LFM Mag 18/25 - need heals / dps (spriest pref)", "late-mid ads should shape missing baseline utility instead of falling back to need all")
 end)
 
 test("smart advertiser names missing 25-player tank shapes once roster has signal", function()
@@ -406,9 +406,9 @@ test("smart advertiser names missing 25-player tank shapes once roster has signa
 
     local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
 
-    assertEquals(msg, "LFM Gruul 12/25 - need bear + prot pal + rsham + druid + melee dps", "25-player tank and healer shaping should name the inviteable slots")
-    assertTrue(string.find(msg, "tanks", 1, true) == nil, "shaped tank asks should not collapse to generic tanks")
-    assertTrue(string.find(msg, "heals", 1, true) == nil, "capped healer classes should not produce a generic heals ask")
+    assertEquals(msg, "LFM Gruul 12/25 - need tanks (bear/prot pal) / heals (rshaman/rdruid) / dps (melee pref)", "25-player tank and healer shaping should name the inviteable slots")
+    assertTrue(string.find(msg, "tanks (", 1, true) ~= nil, "shaped tank asks should not collapse to generic tanks")
+    assertTrue(string.find(msg, "heals (", 1, true) ~= nil, "capped healer classes should not produce a generic heals ask")
     assertTrue(string.find(msg, "hpal", 1, true) == nil, "holy paladin should not be advertised once two are already in raid")
 end)
 
@@ -423,7 +423,7 @@ test("smart advertiser keeps shaped tanks specific even with balanced DPS", func
 
     local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
 
-    assertEquals(msg, "LFM Gruul 12/25 - need bear + prot pal + heals + DPS", "shaped tank needs should not disappear into need all when DPS is balanced")
+    assertEquals(msg, "LFM Gruul 12/25 - need tanks (bear/prot pal) / heals / dps", "shaped tank needs should not disappear into need all when DPS is balanced")
 end)
 
 test("smart advertiser avoids generic heals when a healer class is capped", function()
@@ -438,8 +438,8 @@ test("smart advertiser avoids generic heals when a healer class is capped", func
 
     local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
 
-    assertEquals(msg, "LFM Gruul 13/25 - need rsham + priest + druid + caster dps", "healer overloads should steer toward non-capped healer classes")
-    assertTrue(string.find(msg, "heals", 1, true) == nil, "generic heals would invite capped holy paladins")
+    assertEquals(msg, "LFM Gruul 13/25 - need heals (rshaman/hpriest/rdruid) / dps (caster pref)", "healer overloads should steer toward non-capped healer classes")
+    assertTrue(string.find(msg, "heals (", 1, true) ~= nil, "generic heals would invite capped holy paladins")
     assertTrue(string.find(msg, "hpal", 1, true) == nil, "capped holy paladin should be filtered from healer specifics")
 end)
 
@@ -454,7 +454,7 @@ test("smart advertiser keeps broad heals when every healer class is still invite
 
     local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
 
-    assertEquals(msg, "LFM Gruul 13/25 - need heals + caster dps", "broad heals should stay readable when healer classes are not capped")
+    assertEquals(msg, "LFM Gruul 13/25 - need heals / dps (caster pref)", "broad heals should stay readable when healer classes are not capped")
 end)
 
 test("smart advertiser starts shaping missing baseline DPS utility by mid-fill", function()
@@ -474,7 +474,7 @@ test("smart advertiser starts shaping missing baseline DPS utility by mid-fill",
 
     local eleMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(elePlayers))
 
-    assertEquals(eleMsg, "LFM Gruul 16/25 - need ele + DPS", "missing elemental should be shaped before the last DPS slot")
+    assertEquals(eleMsg, "LFM Gruul 16/25 - need dps (ele pref)", "missing elemental should be shaped before the last DPS slot")
 
     local enhPlayers = {
         unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
@@ -492,7 +492,7 @@ test("smart advertiser starts shaping missing baseline DPS utility by mid-fill",
 
     local enhMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(enhPlayers))
 
-    assertEquals(enhMsg, "LFM Gruul 16/25 - need enh + melee dps", "missing enhancement should be shaped while physical DPS is light")
+    assertEquals(enhMsg, "LFM Gruul 16/25 - need dps (enh pref)", "missing enhancement should be shaped while physical DPS is light")
 end)
 
 test("smart advertiser watches boomkin and shadow priest as baseline 25-player utility", function()
@@ -512,7 +512,7 @@ test("smart advertiser watches boomkin and shadow priest as baseline 25-player u
 
     local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
 
-    assertEquals(msg, "LFM Gruul 16/25 - need boomkin + spriest + DPS", "boomkin and shadow priest should be shaped as baseline 25-player utility")
+    assertEquals(msg, "LFM Gruul 16/25 - need dps (spriest/boomkin pref)", "boomkin and shadow priest should be shaped as baseline 25-player utility")
 end)
 
 test("smart advertiser names missing utility DPS alongside role shortages", function()
@@ -523,18 +523,18 @@ test("smart advertiser names missing utility DPS alongside role shortages", func
         unit("Cleanse", "PALADIN", "HEALER", "HOLY", 5),
         unit("Tree", "DRUID", "HEALER", "RESTORATION", 5),
         unit("Prayer", "PRIEST", "HEALER", "HOLY", 5),
-        unit("Windfury", "SHAMAN", "DAMAGER", "ENHANCEMENT", 2),
         unit("Moonchef", "DRUID", "DAMAGER", "BALANCE", 3),
-        unit("Mindtap", "PRIEST", "DAMAGER", "SHADOW", 4),
     }
     addUnits(players, 4, "Lock", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
     addUnits(players, 2, "Rogue", "ROGUE", "DAMAGER", "ROGUE_DPS", 2)
+    players[#players + 1] = unit("Frosty", "MAGE", "DAMAGER", "MAGE_CASTER", 3)
+    players[#players + 1] = unit("Backstab", "ROGUE", "DAMAGER", "ROGUE_DPS", 2)
     players[#players + 1] = unit("Slammer", "WARRIOR", "DAMAGER", "WARRIOR_DPS", 2)
     players[#players + 1] = unit("Marks", "HUNTER", "DAMAGER", "MARKSMANSHIP", 2)
 
     local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
 
-    assertEquals(msg, "LFM Gruul 17/25 - need bear + rsham + priest + ele + DPS", "utility DPS shaping should not wait for tank and healer asks to finish")
+    assertEquals(msg, "LFM Gruul 17/25 - need tank (bear) / heals (rshaman/hpriest) / dps (ele/enh/spriest pref)", "utility DPS shaping should not wait for tank and healer asks to finish")
 end)
 
 test("smart advertiser gets specific only when the slot is specific", function()
@@ -546,7 +546,7 @@ test("smart advertiser gets specific only when the slot is specific", function()
     addUnits(tankPlayers, 15, "Dps", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
     local tankMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 7 }, context(tankPlayers))
 
-    assertEquals(tankMsg, "LFM Gruul 24/25 - need prot warr", "one missing tank slot should name the missing tank type")
+    assertEquals(tankMsg, "LFM Gruul 24/25 - need tank (prot warr)", "one missing tank slot should name the missing tank type")
 
     local manyTankPlayers = {
         unit("Tankadin", "PALADIN", "TANK", "PROTECTION", 1, true),
@@ -555,7 +555,7 @@ test("smart advertiser gets specific only when the slot is specific", function()
     addUnits(manyTankPlayers, 14, "Dps", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
     local manyTankMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 7 }, context(manyTankPlayers))
 
-    assertEquals(manyTankMsg, "LFM Gruul 22/25 - need bear + prot warr", "multiple shaped 25-player tank slots should stay specific")
+    assertEquals(manyTankMsg, "LFM Gruul 22/25 - need tanks (bear/prot warr)", "multiple shaped 25-player tank slots should stay specific")
 end)
 
 test("smart advertiser keeps 10-player off-tank asks broad", function()
@@ -583,7 +583,7 @@ test("smart advertiser can ask for melee or a specific caster", function()
     addUnits(meleePlayers, 13, "Caster", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 3)
     local meleeMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 7 }, context(meleePlayers))
 
-    assertEquals(meleeMsg, "LFM Gruul 23/25 - need enh + melee dps", "physical-light comps should ask for enhancement plus melee DPS")
+    assertEquals(meleeMsg, "LFM Gruul 23/25 - need dps (enh/ele pref)", "physical-light comps should keep enhancement in late DPS prefs")
 
     local magePlayers = {
         unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
@@ -599,7 +599,7 @@ test("smart advertiser can ask for melee or a specific caster", function()
     addUnits(magePlayers, 7, "Melee", "ROGUE", "DAMAGER", "ROGUE_DPS", 2)
     local mageMsg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 7 }, context(magePlayers))
 
-    assertEquals(mageMsg, "LFM Gruul 24/25 - need enh", "one DPS slot should prefer missing baseline utility")
+    assertEquals(mageMsg, "LFM Gruul 24/25 - need dps (enh pref)", "one DPS slot should prefer missing baseline utility")
 end)
 
 test("smart advertiser names a missing rogue for a late melee slot", function()
@@ -622,7 +622,7 @@ test("smart advertiser names a missing rogue for a late melee slot", function()
 
     local msg = T.GenerateSmartAdvertiserMessageForContext("Gruul's Lair", { size = 25, tanks = 3, healers = 6 }, context(players))
 
-    assertEquals(msg, "LFM Gruul 24/25 - need rogue", "late melee slots should call out rogue when the raid has none")
+    assertEquals(msg, "LFM Gruul 24/25 - need dps (rogue pref)", "late melee slots should call out rogue when the raid has none")
 end)
 
 test("fill simulation logs ads and finishes with a scored comp", function()
@@ -644,7 +644,7 @@ test("fill simulation logs ads and finishes with a scored comp", function()
     assertEquals(plan.rosterSize, 25, "final fill sim plan should contain the full raid")
     assertTrue(plan.score ~= nil, "final fill sim plan should have a Smart Organize score")
     assertTrue(logIncludes(plan.fillLog, "Join:"), "fill sim should log joins")
-    assertTrue(logIncludes(plan.fillLog, "caster dps"), "fill sim should steer toward caster DPS when the sample fill is melee-heavy")
+    assertTrue(logIncludes(plan.fillLog, "caster pref"), "fill sim should steer toward caster DPS when the sample fill is melee-heavy")
     assertTrue(logIncludes(plan.fillLog, "Final score"), "fill sim should log the final score")
 end)
 
@@ -732,7 +732,7 @@ test("fill simulation can surface tank shortages from partial scenarios", functi
 
     T.AdvanceSmartAdvertiserFillState(state)
 
-    assertTrue(logIncludes(state.log, "need bear") or logIncludes(state.log, "need prot pal") or logIncludes(state.log, "need prot warr"), "fill sim should show tank shortages when tanks are not front-loaded")
+    assertTrue(logIncludes(state.log, "bear") or logIncludes(state.log, "prot pal") or logIncludes(state.log, "prot warr"), "fill sim should show tank shortages when tanks are not front-loaded")
 end)
 
 test("fill simulation normalizes speed to 2x 4x or 8x", function()

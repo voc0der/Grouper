@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.64"
+Grouper.version = "1.0.65"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -639,10 +639,10 @@ local SMART_ADVERTISER_SHORT_LABELS = {
     ["Prot Paladin"] = "prot pal",
     ["Feral Tank"] = "bear",
     ["Prot Warrior"] = "prot warr",
-    ["Resto Shaman"] = "rsham",
-    ["Priest Healer"] = "priest",
+    ["Resto Shaman"] = "rshaman",
+    ["Priest Healer"] = "hpriest",
     ["Holy Paladin"] = "hpal",
-    ["Resto Druid"] = "druid",
+    ["Resto Druid"] = "rdruid",
     ["Ele Shaman"] = "ele",
     ["Enh Shaman"] = "enh",
     ["Boomkin"] = "boomkin",
@@ -681,22 +681,22 @@ local SMART_ADVERTISER_BASELINE_DPS_TARGETS = {
 local SMART_ADVERTISER_BASELINE_DPS_ORDER = {
     "Ele Shaman",
     "Enh Shaman",
-    "Boomkin",
     "Shadow Priest",
+    "Boomkin",
 }
 
 local SMART_ADVERTISER_BASELINE_DPS_CASTER_ORDER = {
     "Ele Shaman",
-    "Boomkin",
-    "Shadow Priest",
     "Enh Shaman",
+    "Shadow Priest",
+    "Boomkin",
 }
 
 local SMART_ADVERTISER_BASELINE_DPS_PHYSICAL_ORDER = {
     "Enh Shaman",
     "Ele Shaman",
-    "Boomkin",
     "Shadow Priest",
+    "Boomkin",
 }
 
 local function PrintGrouper(message, color)
@@ -860,9 +860,16 @@ end
 
 local function SmartAdvertiserJoinNeeds(parts)
     if not parts or #parts == 0 then
-        return "DPS"
+        return "dps"
     end
-    return table.concat(parts, " + ")
+    return table.concat(parts, " / ")
+end
+
+local function SmartAdvertiserRoleNeedBlock(label, specifics, suffix)
+    if specifics and #specifics > 0 then
+        return label .. " (" .. table.concat(specifics, "/") .. (suffix or "") .. ")"
+    end
+    return label
 end
 
 local function SmartAdvertiserRoleBucketCount(needs)
@@ -1003,30 +1010,85 @@ local function SmartAdvertiserMissingBaselineDpsLabels(needs)
     return labels
 end
 
-local function SmartAdvertiserPriorityDpsNeedText(needs)
+local function SmartAdvertiserDpsPreferenceLabel(label)
+    if label == "caster dps" then
+        return "caster"
+    end
+    if label == "melee dps" then
+        return "melee"
+    end
+    if label == "DPS" then
+        return nil
+    end
+    return label and string.lower(label) or nil
+end
+
+local function SmartAdvertiserPriorityDpsNeedLabels(needs)
     local labels = SmartAdvertiserMissingBaselineDpsLabels(needs)
     if #labels == 0 then
-        return nil
+        return {}
     end
 
     local dpsNeeded = needs and needs.dpsNeeded or 0
-    local maxUtility = dpsNeeded <= 1 and 1 or math.min(2, dpsNeeded - 1)
-    local parts = SmartAdvertiserShortNeedLabels(labels, maxUtility)
-
-    if dpsNeeded > #parts then
-        parts[#parts + 1] = SmartAdvertiserDpsPriorityText(needs) or "DPS"
+    if dpsNeeded <= 0 then
+        return {}
     end
 
-    return SmartAdvertiserJoinNeeds(parts)
+    return SmartAdvertiserShortNeedLabels(labels, math.min(3, dpsNeeded))
 end
 
-local function SmartAdvertiserSpecificDpsNeed(needs)
+local function SmartAdvertiserDpsPriorityPreferenceLabels(needs)
+    local labels = SmartAdvertiserPriorityDpsNeedLabels(needs)
+    if #labels > 0 then
+        return labels
+    end
+
+    local bucket = SmartAdvertiserDpsPreferenceLabel(SmartAdvertiserDpsPriorityText(needs))
+    if bucket then
+        return { bucket }
+    end
+    return {}
+end
+
+local function SmartAdvertiserSpecificDpsNeedLabel(needs)
     local _, bucket = SmartAdvertiserDpsBucketNeed(needs)
     local label = SmartAdvertiserFirstSpecNeed(needs, ROLE_DAMAGER, bucket) or SmartAdvertiserFirstSpecNeed(needs, ROLE_DAMAGER)
-    return label and SmartAdvertiserShortNeedLabel(label) or SmartAdvertiserDpsBucketNeed(needs)
+    return label and SmartAdvertiserShortNeedLabel(label) or SmartAdvertiserDpsPreferenceLabel(SmartAdvertiserDpsBucketNeed(needs))
 end
 
-local function SmartAdvertiserSpecificTankNeedText(needs)
+local function SmartAdvertiserDpsNeedPreferenceLabels(needs)
+    local labels = SmartAdvertiserPriorityDpsNeedLabels(needs)
+    if #labels > 0 then
+        return labels
+    end
+
+    if (needs.dpsNeeded or 0) > 1 then
+        local bucket = SmartAdvertiserDpsPreferenceLabel(SmartAdvertiserDpsBucketNeed(needs))
+        if bucket then
+            return { bucket }
+        end
+        return {}
+    end
+
+    local label = SmartAdvertiserSpecificDpsNeedLabel(needs)
+    if label then
+        return { label }
+    end
+    return {}
+end
+
+local function SmartAdvertiserDpsNeedBlock(needs, mode)
+    local labels = {}
+    if mode == "priority" then
+        labels = SmartAdvertiserDpsPriorityPreferenceLabels(needs)
+    elseif mode ~= "broad" then
+        labels = SmartAdvertiserDpsNeedPreferenceLabels(needs)
+    end
+
+    return SmartAdvertiserRoleNeedBlock("dps", labels, " pref")
+end
+
+local function SmartAdvertiserSpecificTankNeedLabels(needs)
     local tanksNeeded = needs and needs.tanksNeeded or 0
     if tanksNeeded <= 0 then
         return nil
@@ -1044,25 +1106,22 @@ local function SmartAdvertiserSpecificTankNeedText(needs)
     if #labels == 0 then
         return nil
     end
-    return SmartAdvertiserJoinNeeds(SmartAdvertiserShortNeedLabels(labels, tanksNeeded))
+    return SmartAdvertiserShortNeedLabels(labels, tanksNeeded)
 end
 
-local function SmartAdvertiserTankNeedText(needs)
-    local specific = SmartAdvertiserSpecificTankNeedText(needs)
-    if specific then
-        return specific
+local function SmartAdvertiserTankNeedBlock(needs)
+    local specifics = SmartAdvertiserSpecificTankNeedLabels(needs)
+    if specifics then
+        local label = (needs.tanksNeeded or 0) > 1 and "tanks" or "tank"
+        return SmartAdvertiserRoleNeedBlock(label, specifics)
     end
     if (needs.tanksNeeded or 0) > 1 then
         return "tanks"
     end
-    if (needs.raidSize or 0) <= 10 and (needs.desiredTanks or 0) <= 2 and ((needs.stats and needs.stats.tanks) or 0) >= 1 then
-        return "tank"
-    end
-    local label = SmartAdvertiserFirstSpecNeed(needs, ROLE_TANK)
-    return label and SmartAdvertiserShortNeedLabel(label) or "tank"
+    return "tank"
 end
 
-local function SmartAdvertiserSpecificHealerNeedText(needs)
+local function SmartAdvertiserSpecificHealerNeedLabels(needs)
     local healersNeeded = needs and needs.healersNeeded or 0
     if healersNeeded <= 0 then
         return nil
@@ -1073,44 +1132,29 @@ local function SmartAdvertiserSpecificHealerNeedText(needs)
         return nil
     end
     if healersNeeded == 1 or (SmartAdvertiserRoleHasCappedCandidate(needs, ROLE_HEALER) and (needs.rosterSize or 0) >= 10) then
-        return SmartAdvertiserJoinNeeds(SmartAdvertiserShortNeedLabels(labels, healersNeeded))
+        return SmartAdvertiserShortNeedLabels(labels, healersNeeded)
     end
     return nil
 end
 
-local function SmartAdvertiserHealerNeedText(needs)
-    local specific = SmartAdvertiserSpecificHealerNeedText(needs)
-    if specific then
-        return specific
+local function SmartAdvertiserHealerNeedBlock(needs)
+    local specifics = SmartAdvertiserSpecificHealerNeedLabels(needs)
+    if specifics then
+        return SmartAdvertiserRoleNeedBlock("heals", specifics)
     end
-    if (needs.healersNeeded or 0) > 1 then
-        return "heals"
-    end
-    local label = SmartAdvertiserFirstSpecNeed(needs, ROLE_HEALER)
-    return label and SmartAdvertiserShortNeedLabel(label) or "healer"
-end
-
-local function SmartAdvertiserDpsNeedText(needs)
-    local priority = SmartAdvertiserPriorityDpsNeedText(needs)
-    if priority then
-        return priority
-    end
-    if (needs.dpsNeeded or 0) > 1 then
-        return SmartAdvertiserDpsBucketNeed(needs)
-    end
-    return SmartAdvertiserSpecificDpsNeed(needs)
+    return "heals"
 end
 
 local function SmartAdvertiserBroadRoleNeedText(needs)
     local parts = {}
     if (needs.tanksNeeded or 0) > 0 then
-        parts[#parts + 1] = SmartAdvertiserTankNeedText(needs)
+        parts[#parts + 1] = SmartAdvertiserTankNeedBlock(needs)
     end
     if (needs.healersNeeded or 0) > 0 then
-        parts[#parts + 1] = SmartAdvertiserHealerNeedText(needs)
+        parts[#parts + 1] = SmartAdvertiserHealerNeedBlock(needs)
     end
     if (needs.dpsNeeded or 0) > 0 then
-        parts[#parts + 1] = SmartAdvertiserDpsNeedText(needs)
+        parts[#parts + 1] = SmartAdvertiserDpsNeedBlock(needs)
     end
     return SmartAdvertiserJoinNeeds(parts)
 end
@@ -1118,31 +1162,35 @@ end
 local function SmartAdvertiserMixedRoleNeedText(needs)
     local parts = {}
     if (needs.tanksNeeded or 0) > 0 then
-        parts[#parts + 1] = SmartAdvertiserTankNeedText(needs)
+        parts[#parts + 1] = SmartAdvertiserTankNeedBlock(needs)
     end
     if (needs.healersNeeded or 0) > 0 then
-        parts[#parts + 1] = SmartAdvertiserHealerNeedText(needs)
+        parts[#parts + 1] = SmartAdvertiserHealerNeedBlock(needs)
     end
     if (needs.dpsNeeded or 0) > 0 then
-        parts[#parts + 1] = "DPS"
+        parts[#parts + 1] = SmartAdvertiserDpsNeedBlock(needs, "broad")
     end
     return SmartAdvertiserJoinNeeds(parts)
 end
 
-local function SmartAdvertiserMixedPriorityNeedText(needs, dpsPriority)
+local function SmartAdvertiserMixedPriorityNeedText(needs)
     local parts = {}
     if (needs.tanksNeeded or 0) > 0 then
-        parts[#parts + 1] = SmartAdvertiserTankNeedText(needs)
+        parts[#parts + 1] = SmartAdvertiserTankNeedBlock(needs)
     end
     if (needs.healersNeeded or 0) > 0 then
-        parts[#parts + 1] = SmartAdvertiserHealerNeedText(needs)
+        parts[#parts + 1] = SmartAdvertiserHealerNeedBlock(needs)
     end
-    parts[#parts + 1] = dpsPriority
+    parts[#parts + 1] = SmartAdvertiserDpsNeedBlock(needs, "priority")
     return SmartAdvertiserJoinNeeds(parts)
 end
 
 local function SmartAdvertiserHasSpecificRoleNeed(needs)
-    return SmartAdvertiserSpecificTankNeedText(needs) ~= nil or SmartAdvertiserSpecificHealerNeedText(needs) ~= nil
+    return SmartAdvertiserSpecificTankNeedLabels(needs) ~= nil or SmartAdvertiserSpecificHealerNeedLabels(needs) ~= nil
+end
+
+local function SmartAdvertiserHasDpsPriorityNeed(needs)
+    return #SmartAdvertiserDpsPriorityPreferenceLabels(needs) > 0
 end
 
 local function SmartAdvertiserNeedText(needs)
@@ -1157,9 +1205,8 @@ local function SmartAdvertiserNeedText(needs)
     local roleBucketCount = SmartAdvertiserRoleBucketCount(needs)
     if (needs.openSlots or 0) > 6 then
         if roleBucketCount > 1 then
-            local dpsPriority = SmartAdvertiserPriorityDpsNeedText(needs) or SmartAdvertiserDpsPriorityText(needs)
-            if dpsPriority then
-                return SmartAdvertiserMixedPriorityNeedText(needs, dpsPriority)
+            if SmartAdvertiserHasDpsPriorityNeed(needs) then
+                return SmartAdvertiserMixedPriorityNeedText(needs)
             end
             if (needs.rosterSize or 0) >= 10 and SmartAdvertiserHasSpecificRoleNeed(needs) then
                 return SmartAdvertiserMixedRoleNeedText(needs)
@@ -1173,16 +1220,16 @@ local function SmartAdvertiserNeedText(needs)
     end
 
     if (needs.tanksNeeded or 0) > 0 then
-        return SmartAdvertiserTankNeedText(needs)
+        return SmartAdvertiserTankNeedBlock(needs)
     end
     if (needs.healersNeeded or 0) > 0 then
-        return SmartAdvertiserHealerNeedText(needs)
+        return SmartAdvertiserHealerNeedBlock(needs)
     end
     if (needs.dpsNeeded or 0) > 0 then
-        return SmartAdvertiserDpsNeedText(needs)
+        return SmartAdvertiserDpsNeedBlock(needs)
     end
 
-    return "DPS"
+    return "dps"
 end
 
 local function IsOrganizerSpec(unit, spec)
