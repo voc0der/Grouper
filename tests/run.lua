@@ -558,7 +558,7 @@ test("smart advertiser gets specific only when the slot is specific", function()
     assertEquals(manyTankMsg, "LFM Gruul 22/25 - need tanks (bear/prot warr)", "multiple shaped 25-player tank slots should stay specific")
 end)
 
-test("smart advertiser keeps 10-player off-tank asks broad", function()
+test("smart advertiser shapes 10-player tank asks around ideal pair", function()
     local players = {
         unit("Shield", "PALADIN", "TANK", "PROTECTION", 1, true),
         unit("Light", "PRIEST", "HEALER", "HOLY", 2),
@@ -568,9 +568,67 @@ test("smart advertiser keeps 10-player off-tank asks broad", function()
 
     local msg = T.GenerateSmartAdvertiserMessageForContext("Karazhan", { size = 10, tanks = 2, healers = 2 }, { players = players, groupCount = 2, configuredSize = 10 })
 
-    assertEquals(msg, "LFM Kara 9/10 - need tank", "10-player second tank asks should accept bear or prot warrior")
-    assertTrue(string.find(msg, "bear", 1, true) == nil, "10-player off-tank ask should not force bear")
-    assertTrue(string.find(msg, "prot warr", 1, true) == nil, "10-player off-tank ask should not force warrior either")
+    assertEquals(msg, "LFM Kara 9/10 - need tank (bear/prot warr)", "10-player off-tank asks should prefer a bear or prot warrior beside a prot paladin")
+
+    local pallyPlayers = {
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+        unit("Light", "PRIEST", "HEALER", "HOLY", 2),
+        unit("Renewal", "SHAMAN", "HEALER", "RESTORATION", 2),
+    }
+    addUnits(pallyPlayers, 6, "Dps", "MAGE", "DAMAGER", "MAGE_CASTER", 2)
+
+    local pallyMsg = T.GenerateSmartAdvertiserMessageForContext("Karazhan", { size = 10, tanks = 2, healers = 2 }, { players = pallyPlayers, groupCount = 2, configuredSize = 10 })
+
+    assertEquals(pallyMsg, "LFM Kara 9/10 - need tank (prot pal)", "10-player tank asks should fill the prot paladin side when bear or warrior is already covered")
+end)
+
+test("smart advertiser steers 10-player shaman utility", function()
+    local players = {
+        unit("Shield", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Bearwall", "DRUID", "TANK", "FERAL_TANK", 1, true),
+        unit("Light", "PRIEST", "HEALER", "HOLY", 2),
+        unit("Renewal", "SHAMAN", "HEALER", "RESTORATION", 2),
+    }
+    addUnits(players, 2, "Caster", "WARLOCK", "DAMAGER", "WARLOCK_CASTER", 2)
+    addUnits(players, 2, "Melee", "ROGUE", "DAMAGER", "ROGUE_DPS", 1)
+
+    local msg = T.GenerateSmartAdvertiserMessageForContext("Karazhan", { size = 10, tanks = 2, healers = 2 }, { players = players, groupCount = 2, configuredSize = 10 })
+
+    assertEquals(msg, "LFM Kara 8/10 - need dps (ele/enh pref)", "10-player DPS asks should prefer one elemental and one enhancement shaman")
+
+    local missingEnhPlayers = {
+        unit("Shield", "PALADIN", "TANK", "PROTECTION", 1, true),
+        unit("Light", "PRIEST", "HEALER", "HOLY", 2),
+        unit("Renewal", "SHAMAN", "HEALER", "RESTORATION", 2),
+        unit("Stormbolt", "SHAMAN", "DAMAGER", "ELEMENTAL", 2),
+    }
+    addUnits(missingEnhPlayers, 4, "Dps", "MAGE", "DAMAGER", "MAGE_CASTER", 2)
+
+    local missingEnhMsg = T.GenerateSmartAdvertiserMessageForContext("Karazhan", { size = 10, tanks = 2, healers = 2 }, { players = missingEnhPlayers, groupCount = 2, configuredSize = 10 })
+
+    assertEquals(missingEnhMsg, "LFM Kara 8/10 - need tank (bear/prot warr) / dps (enh pref)", "10-player ads should keep missing enhancement visible alongside an ideal off-tank ask")
+end)
+
+test("smart advertiser steers vital role shortages around half full", function()
+    local karaPlayers = {}
+    addUnits(karaPlayers, 2, "Heal", "PRIEST", "HEALER", "HOLY", 2)
+    addUnits(karaPlayers, 3, "Dps", "MAGE", "DAMAGER", "MAGE_CASTER", 2)
+
+    local karaMsg = T.GenerateSmartAdvertiserMessageForContext("Karazhan", { size = 10, tanks = 2, healers = 3 }, { players = karaPlayers, groupCount = 2, configuredSize = 10 })
+
+    assertTrue(string.find(karaMsg, "LFM Kara 5/10", 1, true) ~= nil, "half-full 10-player raids should show the roster count")
+    assertTrue(string.find(karaMsg, "tanks (prot pal/bear/prot warr)", 1, true) ~= nil, "half-full 10-player raids with no tanks should shape the ideal tank pair")
+    assertTrue(string.find(karaMsg, "need all", 1, true) == nil, "half-full 10-player raids with no tanks should stop advertising as need all")
+
+    local largePlayers = {}
+    addUnits(largePlayers, 8, "Heal", "PRIEST", "HEALER", "HOLY", 8)
+    addUnits(largePlayers, 12, "Dps", "MAGE", "DAMAGER", "MAGE_CASTER", 3)
+
+    local largeMsg = T.GenerateSmartAdvertiserMessageForContext("Molten Core", { size = 40, tanks = 3, healers = 8 }, { players = largePlayers, groupCount = 8, configuredSize = 40 })
+
+    assertTrue(string.find(largeMsg, "20/40", 1, true) ~= nil, "half-full large raids should show the roster count")
+    assertTrue(string.find(largeMsg, "need tanks", 1, true) ~= nil, "half-full large raids should surface missing tank roles")
+    assertTrue(string.find(largeMsg, "need all", 1, true) == nil, "vital missing roles should not be hidden behind need all at half full")
 end)
 
 test("smart advertiser can ask for melee or a specific caster", function()

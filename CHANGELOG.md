@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.66] - 2026-05-27
+
+### Fixed
+- Smart Advertiser now surfaces missing tank/healer roles around half-full rosters, including 5/10 Karazhan groups with no tanks.
+- Smart Advertiser now steers 10-player raids toward one prot paladin tank, one bear/prot warrior tank, and elemental/enhancement shaman DPS utility.
+- Smart Organize planning preview text now reserves space for wrapped lines so long group summaries do not overlap later rows.
+
 ## [1.0.65] - 2026-05-27
 
 ### Changed
@@ -210,7 +217,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.65...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.66...HEAD
+[1.0.66]: https://github.com/voc0der/Grouper/compare/v1.0.65...v1.0.66
 [1.0.65]: https://github.com/voc0der/Grouper/compare/v1.0.64...v1.0.65
 [1.0.64]: https://github.com/voc0der/Grouper/compare/v1.0.63...v1.0.64
 [1.0.63]: https://github.com/voc0der/Grouper/compare/v1.0.62...v1.0.63
