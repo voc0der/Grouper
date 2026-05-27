@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.63] - 2026-05-27
 
 ### Fixed
-- Smart Advertiser now keeps shaped 25-player tank asks specific and filters capped healer classes out of broad healer ads.
+- Smart Advertiser now keeps shaped 25-player tank asks specific, filters capped healer classes out of broad healer ads, and starts steering missing baseline DPS utility for 25-player raids.
 
 ## [1.0.62] - 2026-05-27
 
