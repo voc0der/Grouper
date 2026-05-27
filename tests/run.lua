@@ -117,6 +117,15 @@ local function addUnits(players, count, prefix, class, role, spec, subgroup)
     end
 end
 
+local function finishFillState(state, limit)
+    local guard = 0
+    while not state.complete and guard < (limit or 80) do
+        T.AdvanceSmartAdvertiserFillState(state)
+        guard = guard + 1
+    end
+    return T.BuildSmartAdvertiserFillPlan(state)
+end
+
 test("caster pump groups elemental, boomkin, and three casters", function()
     local players = {
         unit("Bulwark", "WARRIOR", "TANK", "PROTECTION", 1, true),
@@ -220,6 +229,19 @@ test("planning mode respects 20-player raid sizes", function()
     assertEquals(planningContext.groupCount, 4, "20-player raids should use four groups")
 end)
 
+test("planning mode uses 10-player raid roles and group labels", function()
+    local planningContext = T.BuildOrganizerPlanningContext({ configuredSize = 10, sequence = 1 })
+    local plan = T.BuildSmartOrganizePlan(planningContext)
+
+    assertEquals(planningContext.configuredSize, 10, "configured size should stay at 10")
+    assertEquals(planningContext.rosterSize, 10, "10-player planning scenario should fill to 10")
+    assertEquals(planningContext.groupCount, 2, "10-player raids should use two groups")
+    assertEquals(countMatching(planningContext.players, function(player) return player.role == "TANK" end), 2, "default 10-player planning should include two tanks")
+    assertEquals(countMatching(planningContext.players, function(player) return player.role == "HEALER" end), 3, "default 10-player planning should include three healers")
+    assertEquals(plan.groups[1].label, "Melee / tank group", "group one should be labeled for melee/tanks")
+    assertEquals(plan.groups[2].label, "Caster / healer group", "group two should be labeled for casters/healers")
+end)
+
 test("planning mode puts prot paladin threat with caster support", function()
     local planningContext = T.BuildOrganizerPlanningContext({ configuredSize = 25, sequence = 3 })
     local plan = T.BuildSmartOrganizePlan(planningContext)
@@ -244,6 +266,14 @@ test("planning mode includes a shaman-heavy 25-player simulation", function()
     assertEquals(planningContext.rosterSize, 25, "shaman-heavy planning scenario should be a full raid")
     assertTrue(shamans >= 4, "planning mode should offer a scenario with at least four shamans")
     assertTrue(enhancement >= 2, "planning mode should offer a scenario with multiple enhancement shamans")
+end)
+
+test("planning mode supports 40-player raid sizes", function()
+    local planningContext = T.BuildOrganizerPlanningContext({ configuredSize = 40, sequence = 1 })
+
+    assertEquals(planningContext.configuredSize, 40, "configured size should stay at 40")
+    assertEquals(planningContext.rosterSize, 40, "40-player planning scenario should fill to 40")
+    assertEquals(planningContext.groupCount, 8, "40-player raids should use eight groups")
 end)
 
 test("smart advertiser respects configured tank and healer needs", function()
@@ -428,19 +458,65 @@ test("fill simulation logs ads and finishes with a scored comp", function()
     assertEquals(state.targetSize, 25, "fill sim should target a full 25-player raid")
     assertTrue(logIncludes(state.log, "SSC") or logIncludes(state.log, "Serpentshrine Cavern"), "initial fill sim log should include an ad")
 
-    local guard = 0
-    while not state.complete and guard < 30 do
-        T.AdvanceSmartAdvertiserFillState(state)
-        guard = guard + 1
-    end
-
-    local plan = T.BuildSmartAdvertiserFillPlan(state)
+    local plan = finishFillState(state, 30)
     assertTrue(state.complete, "fill sim should complete")
     assertEquals(plan.rosterSize, 25, "final fill sim plan should contain the full raid")
     assertTrue(plan.score ~= nil, "final fill sim plan should have a Smart Organize score")
     assertTrue(logIncludes(plan.fillLog, "Join:"), "fill sim should log joins")
     assertTrue(logIncludes(plan.fillLog, "heals + caster dps"), "fill sim should steer healer and caster DPS needs together when the sample fill is melee-heavy")
     assertTrue(logIncludes(plan.fillLog, "Final score"), "fill sim should log the final score")
+end)
+
+test("fill simulation respects 10-player tank and healer targets", function()
+    local state = T.BuildSmartAdvertiserFillState({
+        bossName = "Karazhan",
+        configuredSize = 10,
+        sequence = 1,
+        speed = 8,
+        startSize = 3,
+    })
+    local plan = finishFillState(state, 30)
+
+    assertTrue(state.complete, "10-player fill sim should complete")
+    assertEquals(plan.rosterSize, 10, "Kara fill sim should finish at 10")
+    assertEquals(countMatching(plan.context.players, function(player) return player.role == "TANK" end), 2, "Kara fill sim should respect two tanks")
+    assertEquals(countMatching(plan.context.players, function(player) return player.role == "HEALER" end), 3, "Kara fill sim should respect three healers")
+    assertEquals(countMatching(plan.context.players, function(player) return player.role == "TANK" and player.class == "PALADIN" end), 1, "two-tank 10-player sims should prefer a prot paladin tank")
+end)
+
+test("fill simulation supports single-tank and solo-healer 10-player targets", function()
+    local state = T.BuildSmartAdvertiserFillState({
+        bossName = "Karazhan",
+        configuredSize = 10,
+        sequence = 2,
+        speed = 8,
+        startSize = 3,
+        config = { size = 10, tanks = 1, healers = 1, category = "10-Man Raid" },
+    })
+    local plan = finishFillState(state, 30)
+
+    assertTrue(state.complete, "edgy 10-player fill sim should complete")
+    assertEquals(plan.rosterSize, 10, "edgy 10-player fill sim should finish at 10")
+    assertEquals(countMatching(plan.context.players, function(player) return player.role == "TANK" end), 1, "single-tank 10-player sim should not add extra tanks")
+    assertEquals(countMatching(plan.context.players, function(player) return player.role == "HEALER" end), 1, "solo-healer 10-player sim should not add extra healers")
+end)
+
+test("fill simulation respects 40-player tank and healer targets", function()
+    local state = T.BuildSmartAdvertiserFillState({
+        bossName = "Molten Core",
+        configuredSize = 40,
+        sequence = 1,
+        speed = 8,
+        startSize = 6,
+        config = { size = 40, tanks = 3, healers = 8, category = "40-Man Raid" },
+    })
+    local plan = finishFillState(state, 80)
+
+    assertTrue(state.complete, "40-player fill sim should complete")
+    assertEquals(plan.rosterSize, 40, "40-player fill sim should finish at 40")
+    assertEquals(#plan.layout, 8, "40-player fill sim should build eight raid groups")
+    assertEquals(countMatching(plan.context.players, function(player) return player.role == "TANK" end), 3, "40-player fill sim should respect configured tanks")
+    assertEquals(countMatching(plan.context.players, function(player) return player.role == "HEALER" end), 8, "40-player fill sim should respect configured healers")
 end)
 
 test("fill simulation can surface tank shortages from partial scenarios", function()

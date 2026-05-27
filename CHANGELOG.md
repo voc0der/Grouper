@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.61] - 2026-05-27
+
+### Fixed
+- Smart Advertiser fill simulations now preserve configured tank and healer targets for 10-player and 40-player raids instead of letting DPS fill reserved role slots.
+- Smart Organize planning now uses 10-player and 40-player simulation scenarios, with clearer two-group labels for 10-player raids.
+
 ## [1.0.60] - 2026-05-26
 
 ### Changed
@@ -182,7 +188,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Master loot warning when stopping recruitment
 - Channel spam buttons for easy posting
 
-[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.54...HEAD
+[Unreleased]: https://github.com/voc0der/Grouper/compare/v1.0.61...HEAD
+[1.0.61]: https://github.com/voc0der/Grouper/compare/v1.0.60...v1.0.61
 [1.0.54]: https://github.com/voc0der/Grouper/compare/v1.0.53...v1.0.54
 [1.0.53]: https://github.com/voc0der/Grouper/compare/v1.0.52...v1.0.53
 [1.0.52]: https://github.com/voc0der/Grouper/compare/v1.0.51...v1.0.52
