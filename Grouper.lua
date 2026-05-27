@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.60"
+Grouper.version = "1.0.61"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -357,6 +357,41 @@ local LOCAL_TALENT_TAB_SPECS = {
     ROGUE = { "ROGUE_DPS", "ROGUE_DPS", "ROGUE_DPS" },
 }
 
+local ORGANIZER_PLANNING_SCENARIOS_10 = {
+    {
+        name = "10/10 Karazhan balanced raid",
+        configuredSize = 10,
+        rosterSize = 10,
+        players = {
+            { name = "Sunward", class = "PALADIN", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Oakhide", class = "DRUID", role = ROLE_TANK, spec = "FERAL_TANK", mainTank = true },
+            { name = "Mend", class = "PRIEST", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Tide", class = "SHAMAN", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Beacon", class = "PALADIN", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Blade", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Shout", class = "WARRIOR", role = ROLE_DAMAGER, spec = "WARRIOR_DPS" },
+            { name = "Bolt", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Spark", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Moonbeam", class = "DRUID", role = ROLE_DAMAGER, spec = "BALANCE" },
+        },
+    },
+    {
+        name = "8/10 Karazhan single-tank start",
+        configuredSize = 10,
+        rosterSize = 8,
+        players = {
+            { name = "Shield", class = "PALADIN", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Light", class = "PRIEST", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Blade", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Totem", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ENHANCEMENT" },
+            { name = "Bolt", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Spark", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Moonbeam", class = "DRUID", role = ROLE_DAMAGER, spec = "BALANCE" },
+            { name = "Arrow", class = "HUNTER", role = ROLE_DAMAGER, spec = "MARKSMANSHIP" },
+        },
+    },
+}
+
 local ORGANIZER_PLANNING_SCENARIOS_25 = {
     {
         name = "23/25 caster setup, missing Elemental",
@@ -515,6 +550,56 @@ local ORGANIZER_PLANNING_SCENARIOS_20 = {
     },
 }
 
+local ORGANIZER_PLANNING_SCENARIOS_40 = {
+    {
+        name = "40/40 classic raid",
+        configuredSize = 40,
+        rosterSize = 40,
+        players = {
+            { name = "Aegis", class = "WARRIOR", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Brick", class = "PALADIN", role = ROLE_TANK, spec = "PROTECTION", mainTank = true },
+            { name = "Rootguard", class = "DRUID", role = ROLE_TANK, spec = "FERAL_TANK" },
+            { name = "Bulwark", class = "WARRIOR", role = ROLE_TANK, spec = "PROTECTION" },
+            { name = "Grace", class = "PRIEST", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Renewal", class = "PRIEST", role = ROLE_HEALER, spec = "DISCIPLINE" },
+            { name = "Beacon", class = "PALADIN", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Cleanse", class = "PALADIN", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Wave", class = "SHAMAN", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Chainheal", class = "SHAMAN", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Grove", class = "DRUID", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Wildbloom", class = "DRUID", role = ROLE_HEALER, spec = "RESTORATION" },
+            { name = "Lightwell", class = "PRIEST", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Radiance", class = "PALADIN", role = ROLE_HEALER, spec = "HOLY" },
+            { name = "Windline", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ENHANCEMENT" },
+            { name = "Stormbolt", class = "SHAMAN", role = ROLE_DAMAGER, spec = "ELEMENTAL" },
+            { name = "Starfall", class = "DRUID", role = ROLE_DAMAGER, spec = "BALANCE" },
+            { name = "Moonchef", class = "DRUID", role = ROLE_DAMAGER, spec = "BALANCE" },
+            { name = "Mindwell", class = "PRIEST", role = ROLE_DAMAGER, spec = "SHADOW" },
+            { name = "Veilmind", class = "PRIEST", role = ROLE_DAMAGER, spec = "SHADOW" },
+            { name = "Hexlight", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Dotweaver", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Ruin", class = "WARLOCK", role = ROLE_DAMAGER, spec = "WARLOCK_CASTER" },
+            { name = "Frostline", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Ember", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Arcanum", class = "MAGE", role = ROLE_DAMAGER, spec = "ARCANE" },
+            { name = "Glacier", class = "MAGE", role = ROLE_DAMAGER, spec = "MAGE_CASTER" },
+            { name = "Ironcall", class = "WARRIOR", role = ROLE_DAMAGER, spec = "WARRIOR_DPS" },
+            { name = "Cleaver", class = "WARRIOR", role = ROLE_DAMAGER, spec = "WARRIOR_DPS" },
+            { name = "Sunder", class = "WARRIOR", role = ROLE_DAMAGER, spec = "WARRIOR_DPS" },
+            { name = "Slice", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Quickstep", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Shiv", class = "ROGUE", role = ROLE_DAMAGER, spec = "ROGUE_DPS" },
+            { name = "Longshot", class = "HUNTER", role = ROLE_DAMAGER, spec = "MARKSMANSHIP" },
+            { name = "Arrowline", class = "HUNTER", role = ROLE_DAMAGER, spec = "SURVIVAL" },
+            { name = "Bullseye", class = "HUNTER", role = ROLE_DAMAGER, spec = "MARKSMANSHIP" },
+            { name = "Resolve", class = "PALADIN", role = ROLE_DAMAGER, spec = "RETRIBUTION" },
+            { name = "Zeal", class = "PALADIN", role = ROLE_DAMAGER, spec = "RETRIBUTION" },
+            { name = "Claws", class = "DRUID", role = ROLE_DAMAGER, spec = "FERAL" },
+            { name = "Prowl", class = "DRUID", role = ROLE_DAMAGER, spec = "FERAL" },
+        },
+    },
+}
+
 local SMART_ADVERTISER_CANDIDATES = {
     { label = "Prot Paladin", class = "PALADIN", role = ROLE_TANK, spec = "PROTECTION", priority = 18, softCap = 1 },
     { label = "Feral Tank", class = "DRUID", role = ROLE_TANK, spec = "FERAL_TANK", priority = 16, softCap = 1 },
@@ -653,6 +738,34 @@ local function NormalizeSmartAdvertiserFillSpeed(speed)
     if speed >= 8 then return 8 end
     if speed >= 4 then return 4 end
     return 2
+end
+
+local function DefaultSmartAdvertiserTankCount(raidSize)
+    if (raidSize or 0) <= RAID_GROUP_SIZE then return 1 end
+    if (raidSize or 0) <= 10 then return 2 end
+    if (raidSize or 0) <= 25 then return 3 end
+    return 4
+end
+
+local function DefaultSmartAdvertiserHealerCount(raidSize)
+    if (raidSize or 0) <= RAID_GROUP_SIZE then return 1 end
+    if (raidSize or 0) <= 10 then return 3 end
+    if (raidSize or 0) <= 25 then return 7 end
+    return 10
+end
+
+local function NormalizeSmartAdvertiserRoleTargets(config, raidSize)
+    config = config or {}
+    raidSize = math.floor(SafeNumber(raidSize or config.size or defaults.raidSize, defaults.raidSize) + 0.5)
+    raidSize = Clamp(raidSize, RAID_GROUP_SIZE, 40)
+
+    local desiredTanks = math.floor(SafeNumber(config.tanks, DefaultSmartAdvertiserTankCount(raidSize)) + 0.5)
+    local desiredHealers = math.floor(SafeNumber(config.healers, DefaultSmartAdvertiserHealerCount(raidSize)) + 0.5)
+
+    desiredTanks = Clamp(desiredTanks, 0, raidSize)
+    desiredHealers = Clamp(desiredHealers, 0, math.max(0, raidSize - desiredTanks))
+
+    return raidSize, desiredTanks, desiredHealers, math.max(0, raidSize - desiredTanks - desiredHealers)
 end
 
 local function IsRaidBossConfig(config)
@@ -2328,8 +2441,15 @@ function Grouper:BuildOrganizerContext(options)
 end
 
 local function GetOrganizerPlanningScenarios(configuredSize)
-    if (configuredSize or 25) <= 20 then
+    configuredSize = configuredSize or 25
+    if configuredSize <= 10 then
+        return ORGANIZER_PLANNING_SCENARIOS_10
+    end
+    if configuredSize <= 20 then
         return ORGANIZER_PLANNING_SCENARIOS_20
+    end
+    if configuredSize > 25 then
+        return ORGANIZER_PLANNING_SCENARIOS_40
     end
     return ORGANIZER_PLANNING_SCENARIOS_25
 end
@@ -2356,9 +2476,7 @@ function Grouper:BuildOrganizerPlanningContext(options)
     local sequence = math.max(1, SafeNumber(options.sequence, 1))
     local scenario = options.scenario or scenarios[((sequence - 1) % #scenarios) + 1]
     local rosterSize = math.min(math.floor(SafeNumber(options.rosterSize or scenario.rosterSize or #scenario.players, #scenario.players) + 0.5), #scenario.players)
-    if configuredSize <= 20 then
-        rosterSize = math.min(rosterSize, configuredSize)
-    end
+    rosterSize = math.min(rosterSize, configuredSize)
     rosterSize = Clamp(rosterSize, 1, #scenario.players)
 
     local desiredSize = math.max(rosterSize, configuredSize)
@@ -2492,9 +2610,9 @@ local function GetOrganizerGroupInfo(groupIndex, groupCount)
         return { key = "mixed", label = "Mixed group" }
     elseif groupCount == 2 then
         if groupIndex == 1 then
-            return ORGANIZER_GROUPS[1]
+            return { key = "threat", label = "Melee / tank group", boardLabel = "Melee" }
         end
-        return { key = "support", label = "Caster / healer support group" }
+        return { key = "support", label = "Caster / healer group", boardLabel = "Casters" }
     elseif groupCount == 3 then
         if groupIndex == 1 then return ORGANIZER_GROUPS[1] end
         if groupIndex == 2 then return ORGANIZER_GROUPS[2] end
@@ -2907,7 +3025,8 @@ function Grouper:ImproveOrganizerLayout(layout)
 
     local improved = true
     local pass = 0
-    while improved and pass < 20 do
+    local maxPasses = #layout > 5 and 5 or 20
+    while improved and pass < maxPasses do
         pass = pass + 1
         improved = false
 
@@ -3006,6 +3125,62 @@ function Grouper:BuildOrganizerSeedLayout(context)
         end
     end
 
+    if groupCount > 5 then
+        local function takeFirst(groupIndex, predicate)
+            if not layout[groupIndex] or #layout[groupIndex] >= RAID_GROUP_SIZE then
+                return nil
+            end
+            for _, unit in ipairs(context.players or {}) do
+                if remaining[unit] and predicate(unit) and AddOrganizerUnitToGroup(layout, groupIndex, unit) then
+                    remaining[unit] = nil
+                    return unit
+                end
+            end
+            return nil
+        end
+
+        local function fillGroup(groupIndex, predicate)
+            while layout[groupIndex] and #layout[groupIndex] < RAID_GROUP_SIZE do
+                if not takeFirst(groupIndex, predicate) then
+                    break
+                end
+            end
+        end
+
+        takeFirst(1, function(unit) return unit.mainTank and IsOrganizerTank(unit) end)
+        takeFirst(1, function(unit) return IsOrganizerTank(unit) end)
+        takeFirst(1, IsOrganizerEnhancement)
+        fillGroup(1, function(unit) return IsOrganizerPhysicalDPS(unit) end)
+
+        takeFirst(2, IsOrganizerEnhancement)
+        fillGroup(2, function(unit) return IsOrganizerPhysicalDPS(unit) end)
+
+        takeFirst(3, IsOrganizerElemental)
+        takeFirst(3, IsOrganizerBoomkin)
+        fillGroup(3, function(unit) return IsOrganizerCasterDPS(unit) end)
+
+        takeFirst(4, IsOrganizerShadowPriest)
+        takeFirst(4, IsOrganizerArcaneMage)
+        fillGroup(4, function(unit) return IsOrganizerManaUser(unit) or IsOrganizerCasterDPS(unit) end)
+
+        takeFirst(5, IsOrganizerRestoShaman)
+        fillGroup(5, function(unit) return IsOrganizerHealer(unit) end)
+
+        for groupIndex = 6, groupCount do
+            if groupIndex % 2 == 0 then
+                fillGroup(groupIndex, function(unit) return IsOrganizerCasterDPS(unit) or IsOrganizerHealer(unit) end)
+            else
+                fillGroup(groupIndex, function(unit) return IsOrganizerPhysicalDPS(unit) or IsOrganizerDamager(unit) end)
+            end
+        end
+
+        for groupIndex = 1, groupCount do
+            fillGroup(groupIndex, function() return true end)
+        end
+
+        return layout
+    end
+
     local function takeBest(groupIndex, predicate, valueFn)
         if not layout[groupIndex] or #layout[groupIndex] >= RAID_GROUP_SIZE then
             return nil
@@ -3033,6 +3208,49 @@ function Grouper:BuildOrganizerSeedLayout(context)
         return nil
     end
 
+    local function seedGroupHasUnit(group, predicate)
+        for _, unit in ipairs(group or {}) do
+            if predicate(unit) then return true end
+        end
+        return false
+    end
+
+    if groupCount == 2 then
+        takeBest(1, function(unit) return unit.mainTank and IsOrganizerTank(unit) end, function(unit)
+            local score = 100
+            if unit.class == "PALADIN" then score = score + 4 end
+            return score
+        end)
+        takeBest(1, function(unit) return IsOrganizerTank(unit) end, function(unit)
+            if unit.class == "PALADIN" then return 96 end
+            return unit.mainTank and 95 or 82
+        end)
+        if seedGroupHasUnit(layout[1], IsOrganizerProtPaladinTank) then
+            takeBest(1, IsOrganizerRetPaladin)
+        end
+        if seedGroupHasUnit(layout[1], IsOrganizerWarriorOrBearTank) then
+            takeBest(1, IsOrganizerEnhancement)
+        end
+        takeBest(1, function(unit) return unit.class == "WARRIOR" and IsOrganizerDamager(unit) end)
+        takeBest(1, function(unit) return IsOrganizerCatDruid(unit) end)
+        while #layout[1] < RAID_GROUP_SIZE do
+            local added = takeBest(1, function(unit) return IsOrganizerPhysicalDPS(unit) end)
+            if not added then break end
+        end
+
+        takeBest(2, IsOrganizerElemental)
+        takeBest(2, IsOrganizerBoomkin)
+        takeBest(2, IsOrganizerShadowPriest)
+        for _ = 1, 3 do
+            takeBest(2, function(unit) return IsOrganizerHealer(unit) end)
+        end
+        while #layout[2] < RAID_GROUP_SIZE do
+            local added = takeBest(2, function(unit)
+                return IsOrganizerCasterDPS(unit) or IsOrganizerManaUser(unit)
+            end)
+            if not added then break end
+        end
+    else
     if groupCount >= 1 then
         takeBest(1, function(unit) return unit.mainTank and IsOrganizerTank(unit) end, function(unit)
             local score = 100
@@ -3096,6 +3314,7 @@ function Grouper:BuildOrganizerSeedLayout(context)
             local added = takeBest(healerGroup, function(unit) return IsOrganizerHealer(unit) end)
             if not added then break end
         end
+    end
     end
 
     while true do
@@ -3340,26 +3559,38 @@ end
 function Grouper:BuildSmartOrganizePlan(context)
     context = context or self:BuildOrganizerContext()
 
-    local currentLayout = BuildCurrentOrganizerLayout(context)
-    local improvedCurrentLayout, currentNet, currentRaw, currentMoves = self:ImproveOrganizerLayout(currentLayout)
+    local chosen
+    if (context.groupCount or 1) > 5 then
+        local seedLayout = self:BuildOrganizerSeedLayout(context)
+        local seedNet, seedRaw, seedMoves = self:ScoreOrganizerLayout(seedLayout)
+        chosen = {
+            layout = seedLayout,
+            netScore = seedNet,
+            rawScore = seedRaw,
+            moves = seedMoves,
+        }
+    else
+        local currentLayout = BuildCurrentOrganizerLayout(context)
+        local improvedCurrentLayout, currentNet, currentRaw, currentMoves = self:ImproveOrganizerLayout(currentLayout)
 
-    local seedLayout = self:BuildOrganizerSeedLayout(context)
-    local improvedSeedLayout, seedNet, seedRaw, seedMoves = self:ImproveOrganizerLayout(seedLayout)
+        local seedLayout = self:BuildOrganizerSeedLayout(context)
+        local improvedSeedLayout, seedNet, seedRaw, seedMoves = self:ImproveOrganizerLayout(seedLayout)
 
-    local currentCandidate = {
-        layout = improvedCurrentLayout,
-        netScore = currentNet,
-        rawScore = currentRaw,
-        moves = currentMoves,
-    }
-    local seedCandidate = {
-        layout = improvedSeedLayout,
-        netScore = seedNet,
-        rawScore = seedRaw,
-        moves = seedMoves,
-    }
+        local currentCandidate = {
+            layout = improvedCurrentLayout,
+            netScore = currentNet,
+            rawScore = currentRaw,
+            moves = currentMoves,
+        }
+        local seedCandidate = {
+            layout = improvedSeedLayout,
+            netScore = seedNet,
+            rawScore = seedRaw,
+            moves = seedMoves,
+        }
 
-    local chosen = OrganizerLayoutIsBetter(seedCandidate, currentCandidate) and seedCandidate or currentCandidate
+        chosen = OrganizerLayoutIsBetter(seedCandidate, currentCandidate) and seedCandidate or currentCandidate
+    end
     local groups = {}
     for groupIndex, group in ipairs(chosen.layout) do
         groups[groupIndex] = self:DescribeOrganizerGroup(group, groupIndex, #chosen.layout)
@@ -3451,10 +3682,7 @@ function Grouper:ScoreSmartAdvertiserCandidate(context, candidate, config, baseR
     end
 
     local stats = SmartAdvertiserRosterStats(context.players)
-    local raidSize = config.size or context.configuredSize or defaults.raidSize
-    local desiredTanks = math.max(0, config.tanks or 0)
-    local desiredHealers = math.max(0, config.healers or 0)
-    local desiredDps = math.max(0, raidSize - desiredTanks - desiredHealers)
+    local raidSize, desiredTanks, desiredHealers, desiredDps = NormalizeSmartAdvertiserRoleTargets(config, config.size or context.configuredSize or defaults.raidSize)
     local openSlots = math.max(0, raidSize - stats.rosterSize)
     if openSlots <= 0 then
         return -100000
@@ -3551,9 +3779,7 @@ function Grouper:BuildSmartAdvertiserNeeds(context, config)
     config = config or {}
 
     local stats = SmartAdvertiserRosterStats(context.players)
-    local raidSize = config.size or context.configuredSize or defaults.raidSize
-    local desiredTanks = math.max(0, config.tanks or 0)
-    local desiredHealers = math.max(0, config.healers or 0)
+    local raidSize, desiredTanks, desiredHealers = NormalizeSmartAdvertiserRoleTargets(config, config.size or context.configuredSize or defaults.raidSize)
     local openSlots = math.max(0, raidSize - stats.rosterSize)
     local tanksNeeded = math.min(openSlots, math.max(0, desiredTanks - stats.tanks))
     local healersNeeded = math.min(math.max(0, openSlots - tanksNeeded), math.max(0, desiredHealers - stats.healers))
@@ -3714,7 +3940,46 @@ local function BuildSmartAdvertiserFillCandidateEntry(label, index)
     }
 end
 
-local function BuildSmartAdvertiserFillOrder(players, sequence)
+local function SmartAdvertiserFillEntryRole(entry)
+    return RoleFromSpec(entry and entry.class, entry and entry.spec, entry and entry.role)
+end
+
+local function BuildSmartAdvertiserFillContextFromEntries(entries, targetSize, sequence)
+    local desiredSize = math.max(targetSize or 0, #(entries or {}), RAID_GROUP_SIZE)
+    local groupCount = Clamp(math.ceil(desiredSize / RAID_GROUP_SIZE), 1, 8)
+    local players = {}
+
+    for index, entry in ipairs(entries or {}) do
+        local role = SmartAdvertiserFillEntryRole(entry)
+        local unit = {
+            unit = nil,
+            raidIndex = index,
+            key = "Fill:" .. tostring(entry.name or index),
+            name = entry.name or ("Fill" .. tostring(index)),
+            fullName = entry.name or ("Fill" .. tostring(index)),
+            class = entry.class,
+            subgroup = GetOrganizerPlanningSubgroup(index, sequence or 1, groupCount),
+            rank = 0,
+            role = role,
+            spec = entry.spec,
+            mainTank = entry.mainTank == true,
+            simulated = true,
+        }
+        Grouper:UpdateOrganizerTags(unit)
+        players[#players + 1] = unit
+    end
+
+    return {
+        players = players,
+        groupCount = groupCount,
+        configuredSize = targetSize,
+        guess = true,
+        simulation = true,
+        rosterSize = #players,
+    }
+end
+
+local function BuildSmartAdvertiserFillOrder(players, sequence, config, targetSize)
     local buckets = {
         tank = {},
         healer = {},
@@ -3744,49 +4009,214 @@ local function BuildSmartAdvertiserFillOrder(players, sequence)
         return nil
     end
 
+    targetSize = math.min(targetSize or #(players or {}), #(players or {}))
+    local _, desiredTanks, desiredHealers, desiredDps = NormalizeSmartAdvertiserRoleTargets(config or {}, targetSize)
+    local placedTanks = 0
+    local placedHealers = 0
+    local placedDps = 0
+
+    local function bucketAllowed(bucketName)
+        if bucketName == "tank" then
+            return placedTanks < desiredTanks
+        end
+        if bucketName == "healer" then
+            return placedHealers < desiredHealers
+        end
+        return placedDps < desiredDps
+    end
+
+    local function takeBucket(bucketName)
+        if bucketAllowed(bucketName) and #buckets[bucketName] > 0 then
+            return table.remove(buckets[bucketName], 1)
+        end
+        return nil
+    end
+
     local ordered = {}
     local pattern = SMART_ADVERTISER_FILL_PATTERNS[((math.max(1, sequence or 1) - 1) % #SMART_ADVERTISER_FILL_PATTERNS) + 1]
     local index = 1
     while remaining() > 0 do
         local preferred = pattern[((index - 1) % #pattern) + 1]
-        local entry = take(preferred)
+        local openSlots = math.max(0, targetSize - #ordered)
+        local tankDeficit = math.max(0, desiredTanks - placedTanks)
+        local healerDeficit = math.max(0, desiredHealers - placedHealers)
+        local entry = nil
+
+        if openSlots <= tankDeficit + healerDeficit then
+            if tankDeficit > 0 then
+                entry = takeBucket("tank")
+            end
+            if not entry and healerDeficit > 0 then
+                entry = takeBucket("healer")
+            end
+        end
+
+        if not entry then
+            for _, bucketName in ipairs(SMART_ADVERTISER_FILL_FALLBACKS[preferred] or SMART_ADVERTISER_FILL_FALLBACKS.dps) do
+                entry = takeBucket(bucketName)
+                if entry then break end
+            end
+        end
+
+        if not entry then
+            entry = take(preferred)
+        end
+
         if not entry then
             break
         end
         ordered[#ordered + 1] = entry
+        local role = SmartAdvertiserFillEntryRole(entry)
+        if role == ROLE_TANK then
+            placedTanks = placedTanks + 1
+        elseif role == ROLE_HEALER then
+            placedHealers = placedHealers + 1
+        else
+            placedDps = placedDps + 1
+        end
         index = index + 1
     end
     return ordered
 end
 
 function Grouper:BuildSmartAdvertiserFillScenario(baseScenario, configuredSize, sequence, config)
-    local players = {}
+    config = config or {}
+    local targetSize, desiredTanks, desiredHealers, desiredDps = NormalizeSmartAdvertiserRoleTargets(config, configuredSize or 25)
+    config.size = config.size or targetSize
+
+    local tanks = {}
+    local healers = {}
+    local dps = {}
+
     for index, entry in ipairs(baseScenario and baseScenario.players or {}) do
-        players[#players + 1] = CopySmartAdvertiserFillEntry(entry, "Fill" .. tostring(index))
+        local copy = CopySmartAdvertiserFillEntry(entry, "Fill" .. tostring(index))
+        local role = SmartAdvertiserFillEntryRole(copy)
+        if role == ROLE_TANK then
+            tanks[#tanks + 1] = copy
+        elseif role == ROLE_HEALER then
+            healers[#healers + 1] = copy
+        else
+            dps[#dps + 1] = copy
+        end
     end
 
-    local targetSize = Clamp(configuredSize or 25, RAID_GROUP_SIZE, 40)
+    local players = {}
+    local tankCount = 0
+    local healerCount = 0
+    local dpsCount = 0
+
+    local function takeFrom(list, predicate)
+        for index, entry in ipairs(list or {}) do
+            if not predicate or predicate(entry) then
+                table.remove(list, index)
+                return entry
+            end
+        end
+        return nil
+    end
+
+    local function addEntry(entry)
+        if not entry or #players >= targetSize then
+            return false
+        end
+
+        local role = SmartAdvertiserFillEntryRole(entry)
+        if role == ROLE_TANK then
+            if tankCount >= desiredTanks then return false end
+            tankCount = tankCount + 1
+        elseif role == ROLE_HEALER then
+            if healerCount >= desiredHealers then return false end
+            healerCount = healerCount + 1
+        else
+            if dpsCount >= desiredDps then return false end
+            dpsCount = dpsCount + 1
+        end
+
+        players[#players + 1] = entry
+        return true
+    end
+
+    local function addFrom(list, predicate)
+        local entry = takeFrom(list, predicate)
+        if entry then
+            return addEntry(entry)
+        end
+        return false
+    end
+
+    if desiredTanks > 0 then
+        if targetSize <= 10 then
+            local hasProtPaladin = addFrom(tanks, function(entry) return entry.class == "PALADIN" end)
+            if tankCount < desiredTanks then
+                local addedTank = addFrom(tanks, function(entry) return entry.class == "DRUID" end)
+                    or addFrom(tanks, function(entry) return entry.class == "WARRIOR" end)
+                    or addFrom(tanks)
+            end
+            if hasProtPaladin or desiredTanks > 2 then
+                while tankCount < desiredTanks do
+                    if not (addFrom(tanks, function(entry) return entry.class == "DRUID" end)
+                        or addFrom(tanks, function(entry) return entry.class == "WARRIOR" end)
+                        or addFrom(tanks)) then
+                        break
+                    end
+                end
+            end
+        else
+            while tankCount < desiredTanks do
+                if not (addFrom(tanks, function(entry) return entry.mainTank == true end)
+                    or addFrom(tanks, function(entry) return entry.class == "PALADIN" end)
+                    or addFrom(tanks, function(entry) return entry.class == "DRUID" end)
+                    or addFrom(tanks, function(entry) return entry.class == "WARRIOR" end)
+                    or addFrom(tanks)) then
+                    break
+                end
+            end
+        end
+    end
+
+    while healerCount < desiredHealers do
+        if not addFrom(healers) then
+            break
+        end
+    end
+
+    while dpsCount < desiredDps do
+        if not addFrom(dps) then
+            break
+        end
+    end
+
+    local function fallbackLabel()
+        if tankCount < desiredTanks then
+            return "Prot Paladin"
+        end
+        if healerCount < desiredHealers then
+            return "Priest Healer"
+        end
+        if dpsCount < desiredDps then
+            return "Warlock"
+        end
+        return "Mage"
+    end
+
     local safety = 0
-    while #players < targetSize and safety < 40 do
+    while #players < targetSize and safety < 80 do
         safety = safety + 1
-        local context = self:BuildOrganizerPlanningContext({
-            configuredSize = targetSize,
-            sequence = sequence,
-            scenario = {
-                name = baseScenario and baseScenario.name or "fill sim",
-                players = players,
-            },
-            rosterSize = #players,
-        })
-        local labels = self:SelectSmartAdvertiserCandidates(context, config or {}, 1)
-        players[#players + 1] = BuildSmartAdvertiserFillCandidateEntry(labels[1], #players + 1)
+        local context = BuildSmartAdvertiserFillContextFromEntries(players, targetSize, sequence)
+        local labels = self:SelectSmartAdvertiserCandidates(context, config, 1)
+        local label = labels[1] or fallbackLabel()
+        if not addEntry(BuildSmartAdvertiserFillCandidateEntry(label, #players + 1)) then
+            if not addEntry(BuildSmartAdvertiserFillCandidateEntry(fallbackLabel(), #players + 1)) then
+                break
+            end
+        end
     end
 
     return {
         name = baseScenario and baseScenario.name or "fill sim",
-        configuredSize = configuredSize,
+        configuredSize = targetSize,
         rosterSize = math.min(targetSize, #players),
-        players = BuildSmartAdvertiserFillOrder(players, sequence),
+        players = BuildSmartAdvertiserFillOrder(players, sequence, config, targetSize),
     }
 end
 
@@ -3797,18 +4227,29 @@ function Grouper:GetSmartAdvertiserSimulationBoss(configuredSize)
         return bossName, config
     end
 
-    local preferred = (configuredSize or 25) <= 10 and "Karazhan" or "Serpentshrine Cavern"
-    if defaults.bosses[preferred] then
+    local preferred = nil
+    if (configuredSize or 25) <= 10 then
+        preferred = "Karazhan"
+    elseif (configuredSize or 25) == 25 then
+        preferred = "Serpentshrine Cavern"
+    end
+    if preferred and defaults.bosses[preferred] then
         return preferred, self:GetBossConfig(preferred)
     end
 
     for name, defaultConfig in pairs(defaults.bosses) do
-        if IsRaidBossConfig(defaultConfig) then
+        if IsRaidBossConfig(defaultConfig) and (defaultConfig.size or configuredSize) == configuredSize then
             return name, self:GetBossConfig(name)
         end
     end
 
-    return bossName or "Simulated Raid", config or { tanks = 3, healers = 7, size = configuredSize or 25, category = "25-Man Raid" }
+    local size = Clamp(configuredSize or 25, RAID_GROUP_SIZE, 40)
+    return bossName or "Simulated Raid", config or {
+        tanks = DefaultSmartAdvertiserTankCount(size),
+        healers = DefaultSmartAdvertiserHealerCount(size),
+        size = size,
+        category = tostring(size) .. "-Man Raid",
+    }
 end
 
 function Grouper:AppendSmartAdvertiserFillLog(state, text, kind)
@@ -3829,6 +4270,24 @@ function Grouper:BuildSmartAdvertiserFillState(options)
     if options.bossName then
         bossName = options.bossName
         config = self:GetBossConfig(bossName)
+    end
+    if options.config then
+        local override = {}
+        for key, value in pairs(config or {}) do
+            override[key] = value
+        end
+        for key, value in pairs(options.config) do
+            override[key] = value
+        end
+        config = override
+    end
+    if not config then
+        config = {
+            tanks = DefaultSmartAdvertiserTankCount(configuredSize),
+            healers = DefaultSmartAdvertiserHealerCount(configuredSize),
+            size = configuredSize,
+            category = tostring(configuredSize) .. "-Man Raid",
+        }
     end
     configuredSize = Clamp(config.size or configuredSize, RAID_GROUP_SIZE, 40)
 
@@ -5453,7 +5912,7 @@ function Grouper:UpdateSmartOrganizeRaidBoard(plan)
         groupFrame:SetSize(groupWidth, groupHeight)
 
         local info = GetOrganizerGroupInfo(groupIndex, groupCount)
-        local label = GROUP_BOARD_LABELS[info.key] or info.label or "Group"
+        local label = info.boardLabel or GROUP_BOARD_LABELS[info.key] or info.label or "Group"
         groupFrame.Header:SetWidth(groupWidth)
         groupFrame.Header:SetText(string.format("G%d %s", groupIndex, label))
 
