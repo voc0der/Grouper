@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.61"
+Grouper.version = "1.0.62"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -885,6 +885,10 @@ end
 local function SmartAdvertiserTankNeedText(needs)
     if (needs.tanksNeeded or 0) > 1 then
         return "tanks"
+    end
+    local stats = needs and needs.stats or {}
+    if (needs.raidSize or 0) <= 10 and (needs.desiredTanks or 0) <= 2 and (stats.tanks or 0) >= 1 then
+        return "tank"
     end
     local label = SmartAdvertiserFirstSpecNeed(needs, ROLE_TANK)
     return label and SmartAdvertiserShortNeedLabel(label) or "tank"
@@ -4186,8 +4190,23 @@ function Grouper:BuildSmartAdvertiserFillScenario(baseScenario, configuredSize, 
         end
     end
 
+    local function rosterHasTankClass(classFile)
+        for _, entry in ipairs(players or {}) do
+            if entry.class == classFile and SmartAdvertiserFillEntryRole(entry) == ROLE_TANK then
+                return true
+            end
+        end
+        return false
+    end
+
     local function fallbackLabel()
         if tankCount < desiredTanks then
+            if targetSize <= 10 and desiredTanks <= 2 and tankCount == 1 then
+                if rosterHasTankClass("PALADIN") then
+                    return (math.max(1, sequence or 1) % 2 == 0) and "Prot Warrior" or "Feral Tank"
+                end
+                return "Prot Paladin"
+            end
             return "Prot Paladin"
         end
         if healerCount < desiredHealers then
@@ -4204,7 +4223,7 @@ function Grouper:BuildSmartAdvertiserFillScenario(baseScenario, configuredSize, 
         safety = safety + 1
         local context = BuildSmartAdvertiserFillContextFromEntries(players, targetSize, sequence)
         local labels = self:SelectSmartAdvertiserCandidates(context, config, 1)
-        local label = labels[1] or fallbackLabel()
+        local label = tankCount < desiredTanks and fallbackLabel() or labels[1] or fallbackLabel()
         if not addEntry(BuildSmartAdvertiserFillCandidateEntry(label, #players + 1)) then
             if not addEntry(BuildSmartAdvertiserFillCandidateEntry(fallbackLabel(), #players + 1)) then
                 break
