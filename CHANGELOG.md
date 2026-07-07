@@ -7,8 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.67] - 2026-07-07
+
+### Changed
+- Bumped the TBC Anniversary TOC interface target to `20506` for the `2.5.6` (68502) client patch. Classic Era (`11507`) and Wrath (`30403`) targets are untouched since neither client patched today.
+
 ### Fixed
 - Smart Organize now splits 10-player warrior/bear plus prot paladin tank pairs so the prot paladin supports the caster group while the melee tank keeps the physical group.
+- Prefer `C_CombatLog.GetCurrentEventInfo` over the now-deprecated `CombatLogGetCurrentEventInfo` global for world-boss kill detection (Blizzard ships the legacy name only as an opt-out compatibility fallback as of `2.5.6`), falling back to the legacy global on older clients.
+
+### Tests
+- Verified against the `wow-ui-source` diff between `2.5.5` (68101) and `2.5.6` (68502) for the TBC Anniversary branch.
 
 ## [1.0.66] - 2026-05-27
 

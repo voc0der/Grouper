@@ -1,6 +1,6 @@
 -- Grouper: Addon to help manage PUG groups for raids, dungeons, and world bosses
 local Grouper = {}
-Grouper.version = "1.0.66"
+Grouper.version = "1.0.67"
 Grouper.peerSpecs = Grouper.peerSpecs or {}
 
 -- Detect expansion
@@ -7536,7 +7536,13 @@ combatLogFrame:SetScript("OnEvent", function(self, event)
     if event == "ZONE_CHANGED_NEW_AREA" or event == "GROUP_ROSTER_UPDATE" then
         updateCombatLogRegistration()
     elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-        local _, subEvent, _, _, _, _, _, destGUID, destName = CombatLogGetCurrentEventInfo()
+        -- Prefer the namespaced C_CombatLog API; the legacy global is now only a
+        -- deprecation fallback Blizzard may remove in a future client.
+        local getCurrentEventInfo = (type(C_CombatLog) == "table" and type(C_CombatLog.GetCurrentEventInfo) == "function")
+            and C_CombatLog.GetCurrentEventInfo or CombatLogGetCurrentEventInfo
+        if not getCurrentEventInfo then return end
+
+        local _, subEvent, _, _, _, _, _, destGUID, destName = getCurrentEventInfo()
 
         if subEvent == "UNIT_DIED" and destName then
             -- Check if the dead unit is a world boss

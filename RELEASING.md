@@ -5,7 +5,7 @@
 Grouper supports Classic Era, TBC Anniversary Classic, and Wrath Classic in a single unified addon. The TOC file specifies multiple interface versions:
 
 ```text
-## Interface: 11507, 20505, 30403
+## Interface: 11507, 20506, 30403
 ```
 
 Players on any supported Classic client download the same package.

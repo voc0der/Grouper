@@ -1,8 +1,8 @@
-## Interface: 11507, 20505, 30403
+## Interface: 11507, 20506, 30403
 ## Title: Grouper
 ## Notes: Manage PUG groups for raids, dungeons, and world bosses in Classic, TBC, and WOTLK
 ## Author: voc0der
-## Version: 1.0.66
+## Version: 1.0.67
 ## X-Curse-Project-ID: 1421970
 ## SavedVariables: GrouperDB
 
